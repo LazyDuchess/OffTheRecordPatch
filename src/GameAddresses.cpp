@@ -1,0 +1,61 @@
+#include "pch.h"
+#include "GameAddresses.h"
+
+std::map<std::string, char*> GameAddresses::Addresses;
+
+bool GameAddresses::RegisterAddress(char* name, char* address) {
+	if (address != nullptr) {
+		printf("GameAddresses: Registering %s pointing to %p\n", name, address);
+		Addresses[name] = address;
+		return true;
+	}
+	printf("GameAddresses: Failed to find address for %s\n", name);
+	return false;
+}
+
+bool GameAddresses::Initialize() {
+	if (!RegisterAddress("skip_logos", (char*)0xDEC1D5)) return false;
+	// Not really god mode, attacks don't do anything to you but you can still get killed in other ways like grabs and such.
+	if (!RegisterAddress("chuck_in_god_mode", (char*)0x00dec0f3)) return false;
+	// Ignored by enemies.
+	if (!RegisterAddress("chuck_ghost_mode", (char*)0x00dec0f6)) return false;
+	// Play as chuck.
+	if (!RegisterAddress("frank_off", (char*)0x00dec036)) return false;
+	// Dunno.
+	if (!RegisterAddress("special_chuck", (char*)0x00dec037)) return false;
+	// Might allow some features to be enabled?
+	if (!RegisterAddress("enable_dev_features", (char*)0x00dec038)) return false;
+	// nothing?
+	if (!RegisterAddress("RenderPerformanceInfo", (char*)0x00dec03a)) return false;
+	// Allows you to override settings like fullscreen.
+	if (!RegisterAddress("OverrideRenderSettings", (char*)0x00dec043)) return false;
+	if (!RegisterAddress("RenderFullScreen", (char*)0x00dec044)) return false;
+	// nothing?
+	if (!RegisterAddress("RENDER.forcesoftware", (char*)0x00dec04a)) return false;
+	// Crashes...
+	if (!RegisterAddress("skip_fe", (char*)0x00dec080)) return false;
+	if (!RegisterAddress("skip_fe_autoload_sandbox", (char*)0x00dec083)) return false;
+	if (!RegisterAddress("skip_fe_autoload", (char*)0x00dec082)) return false;
+	// nothing?
+	if (!RegisterAddress("display_fe_screen_info", (char*)0x00dec085)) return false;
+	// black screen on start.
+	if (!RegisterAddress("enable_e3_demo_experience", (char*)0x00dec08d)) return false;
+	// nothing?
+	if (!RegisterAddress("double_players_run_speed", (char*)0x00dec0c4)) return false;
+	// sprint when unarmed.
+	if (!RegisterAddress("enable_sprinting", (char*)0x00dec0c5)) return false;
+	// nothing?
+	if (!RegisterAddress("super_test_mode", (char*)0x00dec0cf)) return false;
+	// unlocks everything
+	if (!RegisterAddress("missions_everything_unlocked", (char*)0x00dec170)) return false;
+	// nothing?
+	if (!RegisterAddress("RENDER.wii_lowgraphics", (char*)0x00e73a1c)) return false;
+	if (!RegisterAddress("suspend_on_lost_focus", (char*)0x00dec19f)) return false;
+	if (!RegisterAddress("InitializeGame", (char*)0x007e7040)) return false;
+	if (!RegisterAddress("InitializeController", (char*)0x00ac0580)) return false;
+	// look into getting non xbox 360 controllers working?
+	if (!RegisterAddress("gController", (char*)0x00e180b0)) return false;
+	if (!RegisterAddress("ControllerInputDevice", (char*)0x00ac00b0)) return false;
+	if (!RegisterAddress("GetInputs", (char*)0x00abba60)) return false;
+	return true;
+}
