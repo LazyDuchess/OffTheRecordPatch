@@ -10,6 +10,7 @@ public:
 	static float CutsceneFPS;
 	static float CutsceneDelta;
 	static float GameDelta;
+	static bool Borderless;
 private:
 	static Core* _instance;
 };
