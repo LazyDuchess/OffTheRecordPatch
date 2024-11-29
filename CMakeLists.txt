@@ -18,9 +18,10 @@ FetchContent_MakeAvailable(MinHook)
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*/*.cpp")
 file(GLOB_RECURSE HEADERS "include/*.h" "include/*/*.h")
 
-add_library(OffTheRecordPatch SHARED ${SOURCES} ${HEADERS})
+add_library(OffTheRecordPatch SHARED ${SOURCES} ${HEADERS} "src/inject.cpp")
 
 target_include_directories(OffTheRecordPatch PRIVATE include minhook/include)
+target_include_directories(OffTheRecordPatch PRIVATE include thirdparty/mINI/src/mini)
 
 target_link_libraries(OffTheRecordPatch PRIVATE minhook)
 
