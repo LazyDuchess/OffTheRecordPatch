@@ -14,3 +14,5 @@ This is a patch for Dead Rising 2: Off The Record that brings some quality of li
 Download the latest version from the [Releases](https://github.com/LazyDuchess/OffTheRecordPatch/releases/latest) tab and extract the zip into your Dead Rising 2: Off the Record installation directory.
 
 The mod has only been tested on a legal Steam copy of the game.
+
+Features can be configured via editing the "OffTheRecordPatch.ini" file with any text editor.
