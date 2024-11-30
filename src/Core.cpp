@@ -6,7 +6,7 @@
 #include <tlhelp32.h>
 #include "inject.h"
 #include <thread>
-#include <Xinput.h>
+#include <dinput.h>
 
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
 typedef LONG (WINAPI* SETWINDOWLONGW)(HWND, int, LONG);
@@ -186,17 +186,6 @@ bool Core::Create() {
 	return _instance->Initialize();
 }
 
-bool IsControllerConnected(int index) {
-	XINPUT_STATE state;
-	ZeroMemory(&state, sizeof(XINPUT_STATE));
-	DWORD result = XInputGetState(index, &state);
-
-	if (result == ERROR_SUCCESS)
-		return true;
-	else
-		return false;
-}
-
 void __declspec(naked) ControllerHook() {
 	__asm {
 		and eax, 0x0000FFFF
@@ -204,6 +193,76 @@ void __declspec(naked) ControllerHook() {
 		mov eax, 0x00AC0C7B
 		jmp eax
 	}
+}
+
+IDirectInput8* pDirectInput = nullptr;
+
+BOOL CALLBACK _DIEnumDevCallback(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
+{
+	printf("Found product name %s\n", lpddi->tszInstanceName);
+
+	DIPROPGUIDANDPATH guidAndPath;
+	guidAndPath.diph.dwSize = sizeof DIPROPGUIDANDPATH;
+	guidAndPath.diph.dwHeaderSize = sizeof DIPROPHEADER;
+	guidAndPath.diph.dwObj = 0;
+	guidAndPath.diph.dwHow = DIPH_DEVICE;
+
+	LPDIRECTINPUTDEVICE8 joystick;
+
+	HRESULT hr = pDirectInput->CreateDevice(lpddi->guidInstance, &joystick, nullptr);
+	if (FAILED(hr))
+		return DIENUM_CONTINUE;
+	hr = joystick->GetProperty(DIPROP_GUIDANDPATH, &guidAndPath.diph);
+	if (FAILED(hr))
+		return DIENUM_CONTINUE;
+	bool isXInputDevice = wcsstr(guidAndPath.wszPath, L"IG_") != nullptr || wcsstr(guidAndPath.wszPath, L"ig_") != nullptr;
+
+	printf("Product Path: %ws\n", guidAndPath.wszPath);
+
+	DIPROPDWORD dipdw;
+	dipdw.diph.dwSize = sizeof(DIPROPDWORD);
+	dipdw.diph.dwHeaderSize = sizeof(DIPROPHEADER);
+	dipdw.diph.dwObj = 0; // Property applies to the entire device
+	dipdw.diph.dwHow = DIPH_DEVICE;
+	hr = joystick->GetProperty(DIPROP_VIDPID, &dipdw.diph);
+	if (FAILED(hr))
+		return DIENUM_CONTINUE;
+
+	DWORD vidpid = dipdw.dwData;
+
+	std::cout << "VIDPID: 0x" << std::hex << vidpid << std::endl;
+
+	if (isXInputDevice)
+	{
+		printf("It's XInput!\n");
+		Inject::WriteToMemory(0x00ac0073, &vidpid, 4);
+		Inject::WriteToMemory(0x00ac0c77, &vidpid, 4);
+		Inject::WriteToMemory(0x00ac0f37, &vidpid, 4);
+		return DIENUM_CONTINUE;
+	}
+	else
+	{
+		printf("Not XInput.\n");
+	}
+	return DIENUM_CONTINUE;
+}
+
+
+void DetectController() {
+	printf("Looking for XInput controller\n");
+	HRESULT hr = DirectInput8Create(
+		GetModuleHandle(nullptr),
+		DIRECTINPUT_VERSION,
+		IID_IDirectInput8,
+		(void**)&pDirectInput,
+		nullptr
+	);
+	if (FAILED(hr)) {
+		printf("Unable to create DirectInput8.\n");
+		return;
+	}
+
+	pDirectInput->EnumDevices(DI8DEVCLASS_GAMECTRL, _DIEnumDevCallback, 0, DIEDFL_ATTACHEDONLY);
 }
 
 bool Core::Initialize() {
@@ -219,20 +278,7 @@ bool Core::Initialize() {
 		freopen_s((FILE**)stderr, "CONOUT$", "w", stderr);
 	}
 
-	bool hasController = false;
-
-	printf("Looking for XInput controller\n");
-	for (int i = 0; i < 4; i++) {
-		if (IsControllerConnected(i)) {
-			printf("Found valid XInput controller!\n");
-			hasController = true;
-			break;
-		}
-	}
-	
-	if (hasController) {
-		Inject::MakeJMP((BYTE*)0x00AC0C76, (DWORD)ControllerHook, 5);
-	}
+	DetectController();
 
 	Core::Borderless = Ini["Display"]["Borderless"] == "true";
 	Core::Windowed = Ini["Display"]["Windowed"] == "true";
