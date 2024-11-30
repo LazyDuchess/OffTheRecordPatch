@@ -24,6 +24,7 @@ target_include_directories(OffTheRecordPatch PRIVATE include minhook/include)
 target_include_directories(OffTheRecordPatch PRIVATE include thirdparty/mINI/src/mini)
 
 target_link_libraries(OffTheRecordPatch PRIVATE minhook)
+target_link_libraries(OffTheRecordPatch PRIVATE XInput)
 
 set_target_properties(OffTheRecordPatch PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"

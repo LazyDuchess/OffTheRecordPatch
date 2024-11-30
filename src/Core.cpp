@@ -6,6 +6,7 @@
 #include <tlhelp32.h>
 #include "inject.h"
 #include <thread>
+#include <Xinput.h>
 
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
 typedef LONG (WINAPI* SETWINDOWLONGW)(HWND, int, LONG);
@@ -185,15 +186,31 @@ bool Core::Create() {
 	return _instance->Initialize();
 }
 
+bool IsControllerConnected(int index) {
+	XINPUT_STATE state;
+	ZeroMemory(&state, sizeof(XINPUT_STATE));
+	DWORD result = XInputGetState(index, &state);
+
+	if (result == ERROR_SUCCESS)
+		return true;
+	else
+		return false;
+}
+
+void __declspec(naked) ControllerHook() {
+	__asm {
+		and eax, 0x0000FFFF
+		cmp eax, 0x0000045E
+		mov eax, 0x00AC0C7B
+		jmp eax
+	}
+}
+
 bool Core::Initialize() {
 	printf("Core initializing\n");
 
 	mINI::INIFile file("OffTheRecordPatch.ini");
 	file.read(Ini);
-
-	Core::Borderless = Ini["Display"]["Borderless"] == "true";
-	Core::Windowed = Ini["Display"]["Windowed"] == "true";
-	Core::FastAffinity = std::stoi(Ini["Advanced"]["FastAffinity"]);
 
 	if (Ini["General"]["Console"] == "true") {
 		AllocConsole();
@@ -201,6 +218,25 @@ bool Core::Initialize() {
 		freopen_s((FILE**)stdout, "CONOUT$", "w", stdout);
 		freopen_s((FILE**)stderr, "CONOUT$", "w", stderr);
 	}
+
+	bool hasController = false;
+
+	printf("Looking for XInput controller\n");
+	for (int i = 0; i < 4; i++) {
+		if (IsControllerConnected(i)) {
+			printf("Found valid XInput controller!\n");
+			hasController = true;
+			break;
+		}
+	}
+	
+	if (hasController) {
+		Inject::MakeJMP((BYTE*)0x00AC0C76, (DWORD)ControllerHook, 5);
+	}
+
+	Core::Borderless = Ini["Display"]["Borderless"] == "true";
+	Core::Windowed = Ini["Display"]["Windowed"] == "true";
+	Core::FastAffinity = std::stoi(Ini["Advanced"]["FastAffinity"]);
 
 	float fpsCap = std::stof(Ini["Display"]["FPSLimit"]);
 	float cutCap = std::stof(Ini["Display"]["CinematicFPS"]);

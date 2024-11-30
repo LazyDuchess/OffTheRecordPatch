@@ -60,5 +60,7 @@ bool GameAddresses::Initialize() {
 	if (!RegisterAddress("FPSLimit", (char*)0x00D6EE70)) return false;
 	if (!RegisterAddress("CutsceneFPS", (char*)0x007CD692)) return false;
 	if (!RegisterAddress("CutsceneDelta", (char*)0x007CD6A6)) return false;
+	if (!RegisterAddress("ControllerCheck", (char*)0x00ac0c83)) return false;
+	if (!RegisterAddress("ControllerCheckJumpTarget", (char*)0x00ac0c93)) return false;
 	return true;
 }
