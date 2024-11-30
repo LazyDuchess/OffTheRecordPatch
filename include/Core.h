@@ -11,6 +11,8 @@ public:
 	static float CutsceneDelta;
 	static float GameDelta;
 	static bool Borderless;
+	static bool Windowed;
+	static int FastAffinity;
 private:
 	static Core* _instance;
 };
