@@ -7,6 +7,8 @@
 #include "inject.h"
 #include <thread>
 #include <dinput.h>
+#include "SteamAPI.h"
+#include "outfits.h"
 
 typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
@@ -28,6 +30,7 @@ float Core::GameDelta = 1.0 / 120.0;
 bool Core::Borderless = false;
 bool Core::Windowed = false;
 int Core::FastAffinity = 0;
+bool Core::FixOutfitUnlocks = true;
 
 static DWORD AffinityMask = 1;
 
@@ -151,8 +154,67 @@ HWND WINAPI DetourCreateWindowExW(DWORD dwExStyle, LPCWSTR lpClassName, LPCWSTR 
 	return res;
 }
 
+bool __stdcall OutfitUnlocked(Outfits outfit) {
+	if (!Core::FixOutfitUnlocks) return false;
+
+	ISteamUserStats* stats = SteamAPI::SteamUserStats();
+	ISteamApps* apps = SteamAPI::SteamApps();
+
+	if (stats)
+		stats->RequestCurrentStats();
+
+	if (outfit == Outfits::AlternateOutfit) {
+		if (!apps) return false;
+		// Check Dead Rising 2 is owned.
+		return (apps->BIsSubscribedApp(45740));
+	}
+	else if (outfit == Outfits::ProtomanBody) {
+		if (!stats) return false;
+		bool achievedProtoman = false;
+		if (!stats->GetAchievement("ACHIEVEMENT_16_THE_CHALLENGE_EXPERIENCE", &achievedProtoman)) return false;
+		return achievedProtoman;
+	}
+	return false;
+}
+
+DWORD OutfitJumpHookFalseTarget = 0x00878048;
+DWORD OutfitJumpHookTrueTarget = 0x0087800E;
+
+void __declspec(naked) OutfitJumpHook() {
+	__asm {
+	jne unlockedBranch
+	push ebp
+	push ebx
+	push esi
+	push edx
+	push edi
+	push [edi+0x4]
+	//call here [edi+4] has outfit hash
+	call OutfitUnlocked
+	test al, al
+	je lockedBranch
+	pop edi
+	pop edx
+	pop esi
+	pop ebx
+	pop ebp
+	unlockedBranch:
+		mov edx,[edi]
+		mov eax,[edx+0x78]
+		mov ecx, OutfitJumpHookTrueTarget
+		jmp ecx
+	lockedBranch:
+		pop edi
+		pop edx
+		pop esi
+		pop ebx
+		pop ebp
+		mov ecx, OutfitJumpHookFalseTarget
+		jmp ecx
+	}
+}
+
 void __stdcall DetourInitializeGame() {
-	
 	if (Core::FastAffinity > 0) {
 		printf("Using %i cores for game logic.\n", Core::FastAffinity);
 		RunFastAffinity(Core::FastAffinity);
@@ -184,6 +246,10 @@ void __stdcall DetourInitializeGame() {
 		GameAddresses::Addresses["RenderFullScreen"][0] = false;
 
 	HookFramerate();
+
+	SteamAPI::Initialize();
+
+	
 }
 
 Core* Core::GetInstance() {
@@ -193,15 +259,6 @@ Core* Core::GetInstance() {
 bool Core::Create() {
 	_instance = new Core();
 	return _instance->Initialize();
-}
-
-void __declspec(naked) ControllerHook() {
-	__asm {
-		and eax, 0x0000FFFF
-		cmp eax, 0x0000045E
-		mov eax, 0x00AC0C7B
-		jmp eax
-	}
 }
 
 IDirectInput8* pDirectInput = nullptr;
@@ -340,6 +397,9 @@ bool Core::Initialize() {
 
 	if (Ini["Cheats"]["OutfitsUnlocked"] == "true") {
 		Inject::Nop((BYTE*)GameAddresses::Addresses["OutfitUnlockJump"], 2);
+	}
+	else {
+		Inject::MakeJMP((BYTE*)GameAddresses::Addresses["OutfitUnlockJump"], (DWORD)OutfitJumpHook, 7);
 	}
 
 	if (Ini["Advanced"]["Debug"] == "true") {

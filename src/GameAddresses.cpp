@@ -63,6 +63,7 @@ bool GameAddresses::Initialize() {
 	if (!RegisterAddress("ControllerCheck", (char*)0x00ac0c83)) return false;
 	if (!RegisterAddress("ControllerCheckJumpTarget", (char*)0x00ac0c93)) return false;
 	if (!RegisterAddress("DebugPrint", (char*)0x00ab75b0)) return false;
+	// [edi+4] has outfit hash
 	if (!RegisterAddress("OutfitUnlockJump", (char*)0x00878007)) return false;
 	return true;
 }

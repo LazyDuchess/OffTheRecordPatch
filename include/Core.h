@@ -12,6 +12,7 @@ public:
 	static float GameDelta;
 	static bool Borderless;
 	static bool Windowed;
+	static bool FixOutfitUnlocks;
 	static int FastAffinity;
 private:
 	static Core* _instance;
