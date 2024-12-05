@@ -170,9 +170,12 @@ bool __stdcall OutfitUnlocked(Outfits outfit) {
 	}
 	else if (outfit == Outfits::ProtomanBody) {
 		if (!stats) return false;
-		bool achievedProtoman = false;
-		if (!stats->GetAchievement("ACHIEVEMENT_16_THE_CHALLENGE_EXPERIENCE", &achievedProtoman)) return false;
-		return achievedProtoman;
+		bool achievedSPChallenges = false;
+		bool achievedCoopChallenges = false;
+		stats->GetAchievement("ACHIEVEMENT_16_THE_CHALLENGE_EXPERIENCE", &achievedSPChallenges);
+		stats->GetAchievement("ACHIEVEMENT_17_MORE_HELP_FROM_MY_FRIENDS", &achievedCoopChallenges);
+		if (achievedSPChallenges || achievedCoopChallenges) return true;
+		return false;
 	}
 	return false;
 }
