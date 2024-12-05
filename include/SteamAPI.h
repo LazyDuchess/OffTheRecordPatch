@@ -31,5 +31,4 @@ public:
 namespace SteamAPI {
 	ISteamApps* SteamApps();
 	ISteamUserStats* SteamUserStats();
-	void Initialize();
 }

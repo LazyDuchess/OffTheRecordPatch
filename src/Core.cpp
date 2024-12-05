@@ -246,10 +246,6 @@ void __stdcall DetourInitializeGame() {
 		GameAddresses::Addresses["RenderFullScreen"][0] = false;
 
 	HookFramerate();
-
-	SteamAPI::Initialize();
-
-	
 }
 
 Core* Core::GetInstance() {
@@ -344,8 +340,10 @@ bool Core::Initialize() {
 		freopen_s((FILE**)stderr, "CONOUT$", "w", stderr);
 	}
 
-	DetectController();
+	if (Ini["Fixes"]["FixControllerSupport"] == "true")
+		DetectController();
 
+	Core::FixOutfitUnlocks = Ini["Fixes"]["FixOutfitUnlocks"] == "true";
 	Core::Borderless = Ini["Display"]["Borderless"] == "true";
 	Core::Windowed = Ini["Display"]["Windowed"] == "true";
 	Core::FastAffinity = std::stoi(Ini["Advanced"]["FastAffinity"]);
