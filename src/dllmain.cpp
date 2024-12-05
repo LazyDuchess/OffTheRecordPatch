@@ -15,7 +15,6 @@ EXTERN_DLL_EXPORT BOOL APIENTRY DllMain( HMODULE hModule,
         DisableThreadLibraryCalls(hModule);
         if (!Core::Create()) {
             printf("Failed to initialize Core!\n");
-            FreeLibraryAndExitThread(hModule, 0);
             return TRUE;
         }
         printf("Core initialized.\n");
