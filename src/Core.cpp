@@ -8,11 +8,13 @@
 #include <thread>
 #include <dinput.h>
 
+typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
 typedef LONG (WINAPI* SETWINDOWLONGW)(HWND, int, LONG);
 typedef HWND (WINAPI* CREATEWINDOWEXW)(DWORD, LPCWSTR, LPCWSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
 typedef void(__stdcall* INITIALIZEGAME)();
 
+DEBUGPRINT fpDebugPrint = NULL;
 INITIALIZEGAME fpInitializeGame = NULL;
 CREATEWINDOWEXW fpCreateWindowExW = NULL;
 SETWINDOWLONGW fpSetWindowLongW = NULL;
@@ -113,6 +115,13 @@ void HookFramerate() {
 	float* deltaMemLoc = &Core::CutsceneDelta;
 	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["CutsceneFPS"], &fpsMemLoc, 4);
 	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["CutsceneDelta"], &deltaMemLoc, 4);
+}
+
+void __cdecl DetourDebugPrint(int debugId, int verbosity, char* str, ...) {
+	va_list args;
+	va_start(args, str);
+	vprintf(str, args);
+	va_end(args);
 }
 
 BOOL WINAPI DetourSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags) {
@@ -327,6 +336,22 @@ bool Core::Initialize() {
 		reinterpret_cast<LPVOID*>(&fpSetWindowPos)) != MH_OK)
 	{
 		return false;
+	}
+
+	if (Ini["Cheats"]["OutfitsUnlocked"] == "true") {
+		Inject::Nop((BYTE*)GameAddresses::Addresses["OutfitUnlockJump"], 2);
+	}
+
+	if (Ini["Advanced"]["Debug"] == "true") {
+		if (MH_CreateHook((void*)GameAddresses::Addresses["DebugPrint"], &DetourDebugPrint,
+			reinterpret_cast<LPVOID*>(&fpDebugPrint)) != MH_OK)
+		{
+			return false;
+		}
+		if (MH_EnableHook((void*)GameAddresses::Addresses["DebugPrint"]) != MH_OK)
+		{
+			return false;
+		}
 	}
 
 	if (MH_EnableHook((void*)GameAddresses::Addresses["InitializeGame"]) != MH_OK)
