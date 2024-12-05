@@ -18,4 +18,6 @@ This mod is meant for and has only been tested on a legal Steam version of the g
 
 Features can be configured via editing the "OffTheRecordPatch.ini" file with any text editor.
 
+I recommend you add an exception in your Antivirus for the .asi file as it might get flagged. This is due to the way it injects into the game code - it is not malicious.
+
 ![20241205155946_1](https://github.com/user-attachments/assets/4d159276-6978-44f2-afe2-9b15f57f6f7e)
