@@ -280,7 +280,7 @@ void __stdcall DetourInitializeGame() {
 	fpInitializeGame();
 
 	OnlineTweaks();
-	TestCheats();
+	//TestCheats();
 
 	if (Core::Ini["General"]["SkipLogos"] == "true")
 		GameAddresses::Addresses["skip_logos"][0] = true;
