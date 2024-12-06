@@ -217,6 +217,60 @@ void __declspec(naked) OutfitJumpHook() {
 	}
 }
 
+void OnlineTweaks() {
+	// online_start_with_max_sent_rate
+	((bool*)0x00dec02c)[0] = true;
+	// online_send_rate_limit_kbps
+	((float*)0x00debee0)[0] = 20.0;
+	// online_disable_heartbeat
+	((bool*)0x00dec1a9)[0] = true;
+}
+
+void TestCheats() {
+	// DEBUG JUMP MENU ------------------
+	// 
+	// enable_dev_features
+	((bool*)0x00dec038)[0] = true;
+	// enable_quickie_debug_menu
+	((bool*)0x00dec093)[0] = true;
+	// enable_dev_only_debug_tiwwchnt
+	((bool*)0x00dec090)[0] = true;
+	// enable_debug_jump_menu
+	((bool*)0x00dec09b)[0] = true;
+
+	// -------------------------------------
+
+	// mr_clean
+	((bool*)0x00dec149)[0] = true;
+
+	// crank_calling_chuck
+	((bool*)0x00dec0f0)[0] = true;
+
+	// user_hamster_ball
+	((bool*)0x00dec0d3)[0] = true;
+
+	// zombie_render_skeleton
+	((bool*)0x00dec0ba)[0] = true;
+
+	// enable_clothing_randomizer
+	((bool*)0x00dec09d)[0] = true;
+
+	// disable_initial_login_dialog
+	((bool*)0x00dec09c)[0] = true;
+
+	// notebook_show_all
+	((bool*)0x00dec087)[0] = true;
+
+	// AlwaysClearCache
+	((bool*)0x00dec07c)[0] = true;
+
+	// enable_debug_text
+	((bool*)0x00dec066)[0] = true;
+
+	// RenderLocalPlayerPosition
+	((bool*)0x00dec056)[0] = true;
+}
+
 void __stdcall DetourInitializeGame() {
 	if (Core::FastAffinity > 0) {
 		printf("Using %i cores for game logic.\n", Core::FastAffinity);
@@ -224,6 +278,9 @@ void __stdcall DetourInitializeGame() {
 	}
 
 	fpInitializeGame();
+
+	OnlineTweaks();
+	TestCheats();
 
 	if (Core::Ini["General"]["SkipLogos"] == "true")
 		GameAddresses::Addresses["skip_logos"][0] = true;
