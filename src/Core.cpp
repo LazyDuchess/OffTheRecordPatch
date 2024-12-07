@@ -129,6 +129,12 @@ typedef std::chrono::steady_clock steady_clock;
 bool netTimeInitialized = false;
 steady_clock::time_point beginNetTimePoint;
 
+BYTE SteamSocketSendType = 2;
+DWORD SteamSocketJumpTarget = 0x00911051;
+#ifdef NET_DEBUG
+int SteamSocketDataSent = 0;
+#endif
+
 void __fastcall DetourUpdateNetworking(void* me, void* _, float deltaTime) {
 	steady_clock::time_point currentNetTime = steady_clock::now();
 	if (!netTimeInitialized) {
@@ -139,9 +145,12 @@ void __fastcall DetourUpdateNetworking(void* me, void* _, float deltaTime) {
 	if (delta >= Core::NetworkingDelta) {
 		beginNetTimePoint = currentNetTime;
 #ifdef NET_DEBUG
-		printf("Updating network. Delta: %f. Target Delta: %f\n", delta, Core::NetworkingDelta);
+		printf("Sent %i packets this tick.\n", SteamSocketDataSent);
+		SteamSocketDataSent = 0;
 #endif
-		return fpUpdateNetworking(me, delta);
+		SteamSocketSendType = 0;
+		fpUpdateNetworking(me, delta);
+		SteamSocketSendType = 2;
 	}
 }
 
@@ -177,6 +186,22 @@ HWND WINAPI DetourCreateWindowExW(DWORD dwExStyle, LPCWSTR lpClassName, LPCWSTR 
 	}
 	HWND res = fpCreateWindowExW(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
 	return res;
+}
+
+void __declspec(naked) SteamSocketSendDataHook() {
+	__asm {
+		//hook
+		push [SteamSocketSendType]
+#ifdef NET_DEBUG
+		inc [SteamSocketDataSent]
+#endif
+
+		push ebx
+		push edx
+		mov edx, [edi]
+		mov ecx, SteamSocketJumpTarget
+		jmp ecx
+	}
 }
 
 bool __stdcall OutfitUnlocked(Outfits outfit) {
@@ -462,6 +487,10 @@ bool Core::Initialize() {
 	}
 	else {
 		Inject::MakeJMP((BYTE*)GameAddresses::Addresses["OutfitUnlockJump"], (DWORD)OutfitJumpHook, 7);
+	}
+
+	if (Ini["Online"]["Unreliable"] == "true") {
+		Inject::MakeJMP((BYTE*)GameAddresses::Addresses["SteamSocketSendDataHook"], (DWORD)SteamSocketSendDataHook, 6);
 	}
 
 	if (Ini["Advanced"]["Debug"] == "true") {

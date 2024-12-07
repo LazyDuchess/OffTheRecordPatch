@@ -69,5 +69,6 @@ bool GameAddresses::Initialize() {
 	if (!RegisterAddress("disable_initial_login_dialog", (char*)0x00dec09c)) return false;
 	if (!RegisterAddress("online_normal_heart_beat", (char*)0x00debed8)) return false;
 	if (!RegisterAddress("online_extended_heart_beat", (char*)0x00debedc)) return false;
+	if (!RegisterAddress("SteamSocketSendDataHook", (char*)0x0091104b)) return false;
 	return true;
 }
