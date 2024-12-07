@@ -425,7 +425,8 @@ bool Core::Initialize() {
 	float cutCap = std::stof(Ini["Display"]["CinematicFPS"]);
 	float netTPSCap = std::stof(Ini["Online"]["Rate"]);
 
-	Core::NetworkingDelta = 1 / netTPSCap;
+	if (netTPSCap > 0.0)
+		Core::NetworkingDelta = 1 / netTPSCap;
 
 	if (fpsCap <= 0.0)
 		GameDelta = 0.0;
@@ -445,17 +446,15 @@ bool Core::Initialize() {
 	if (MH_Initialize() != MH_OK)
 		return false;
 
-	if (netTPSCap > 0.0) {
-		if (MH_CreateHook((void*)GameAddresses::Addresses["UpdateNetworking"], &DetourUpdateNetworking,
-			reinterpret_cast<LPVOID*>(&fpUpdateNetworking)) != MH_OK)
-		{
-			return false;
-		}
+	if (MH_CreateHook((void*)GameAddresses::Addresses["UpdateNetworking"], &DetourUpdateNetworking,
+		reinterpret_cast<LPVOID*>(&fpUpdateNetworking)) != MH_OK)
+	{
+		return false;
+	}
 
-		if (MH_EnableHook((void*)GameAddresses::Addresses["UpdateNetworking"]) != MH_OK)
-		{
-			return false;
-		}
+	if (MH_EnableHook((void*)GameAddresses::Addresses["UpdateNetworking"]) != MH_OK)
+	{
+		return false;
 	}
 
 	if (MH_CreateHook((void*)GameAddresses::Addresses["InitializeGame"], &DetourInitializeGame,
