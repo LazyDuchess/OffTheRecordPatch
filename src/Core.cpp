@@ -15,12 +15,14 @@ typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
 typedef LONG (WINAPI* SETWINDOWLONGW)(HWND, int, LONG);
 typedef HWND (WINAPI* CREATEWINDOWEXW)(DWORD, LPCWSTR, LPCWSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
 typedef void(__stdcall* INITIALIZEGAME)();
+typedef void(__thiscall* UPDATENETWORKING)(void*,float);
 
 DEBUGPRINT fpDebugPrint = NULL;
 INITIALIZEGAME fpInitializeGame = NULL;
 CREATEWINDOWEXW fpCreateWindowExW = NULL;
 SETWINDOWLONGW fpSetWindowLongW = NULL;
 SETWINDOWPOS fpSetWindowPos = NULL;
+UPDATENETWORKING fpUpdateNetworking = NULL;
 
 mINI::INIStructure Core::Ini;
 Core* Core::_instance = nullptr;
@@ -31,6 +33,7 @@ bool Core::Borderless = false;
 bool Core::Windowed = false;
 int Core::FastAffinity = 0;
 bool Core::FixOutfitUnlocks = true;
+float Core::NetworkingDelta = 0.0;
 
 static DWORD AffinityMask = 1;
 
@@ -118,6 +121,24 @@ void HookFramerate() {
 	float* deltaMemLoc = &Core::CutsceneDelta;
 	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["CutsceneFPS"], &fpsMemLoc, 4);
 	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["CutsceneDelta"], &deltaMemLoc, 4);
+}
+
+typedef std::chrono::steady_clock steady_clock;
+
+bool netTimeInitialized = false;
+steady_clock::time_point beginNetTimePoint;
+
+void __fastcall DetourUpdateNetworking(void* me, void* _, float deltaTime) {
+	steady_clock::time_point currentNetTime = steady_clock::now();
+	if (!netTimeInitialized) {
+		beginNetTimePoint = currentNetTime;
+		netTimeInitialized = true;
+	}
+	float delta = std::chrono::duration_cast<std::chrono::duration<float>>(currentNetTime - beginNetTimePoint).count();
+	if (delta >= Core::NetworkingDelta) {
+		beginNetTimePoint = currentNetTime;
+		return fpUpdateNetworking(me, delta);
+	}
 }
 
 void __cdecl DetourDebugPrint(int debugId, int verbosity, char* str, ...) {
@@ -217,18 +238,7 @@ void __declspec(naked) OutfitJumpHook() {
 	}
 }
 
-void OnlineTweaks() {
-	// online_start_with_max_sent_rate
-	((bool*)0x00dec02c)[0] = true;
-	// online_send_rate_limit_kbps
-	((float*)0x00debee0)[0] = 20.0;
-	// online_disable_heartbeat
-	((bool*)0x00dec1a9)[0] = true;
-}
-
-void TestCheats() {
-	// DEBUG JUMP MENU ------------------
-	// 
+void EnableJumpMenu() {
 	// enable_dev_features
 	((bool*)0x00dec038)[0] = true;
 	// enable_quickie_debug_menu
@@ -237,38 +247,6 @@ void TestCheats() {
 	((bool*)0x00dec090)[0] = true;
 	// enable_debug_jump_menu
 	((bool*)0x00dec09b)[0] = true;
-
-	// -------------------------------------
-
-	// mr_clean
-	((bool*)0x00dec149)[0] = true;
-
-	// crank_calling_chuck
-	((bool*)0x00dec0f0)[0] = true;
-
-	// user_hamster_ball
-	((bool*)0x00dec0d3)[0] = true;
-
-	// zombie_render_skeleton
-	((bool*)0x00dec0ba)[0] = true;
-
-	// enable_clothing_randomizer
-	((bool*)0x00dec09d)[0] = true;
-
-	// disable_initial_login_dialog
-	((bool*)0x00dec09c)[0] = true;
-
-	// notebook_show_all
-	((bool*)0x00dec087)[0] = true;
-
-	// AlwaysClearCache
-	((bool*)0x00dec07c)[0] = true;
-
-	// enable_debug_text
-	((bool*)0x00dec066)[0] = true;
-
-	// RenderLocalPlayerPosition
-	((bool*)0x00dec056)[0] = true;
 }
 
 void __stdcall DetourInitializeGame() {
@@ -279,8 +257,8 @@ void __stdcall DetourInitializeGame() {
 
 	fpInitializeGame();
 
-	OnlineTweaks();
-	//TestCheats();
+	if (Core::Ini["Online"]["DisableHeartbeat"] == "true")
+		GameAddresses::Addresses["online_disable_heartbeat"][0] = true;
 
 	if (Core::Ini["General"]["SkipLogos"] == "true")
 		GameAddresses::Addresses["skip_logos"][0] = true;
@@ -300,7 +278,13 @@ void __stdcall DetourInitializeGame() {
 	if (Core::Ini["Cheats"]["EverythingUnlocked"] == "true")
 		GameAddresses::Addresses["missions_everything_unlocked"][0] = true;
 
+	if (Core::Ini["Cheats"]["JumpMenu"] == "true")
+		EnableJumpMenu();
+
 	GameAddresses::Addresses["OverrideRenderSettings"][0] = true;
+	GameAddresses::Addresses["disable_initial_login_dialog"][0] = true;
+	((float*)GameAddresses::Addresses["online_normal_heart_beat"])[0] = std::stof(Core::Ini["Online"]["Heartbeat"]);
+	((float*)GameAddresses::Addresses["online_extended_heart_beat"])[0] = std::stof(Core::Ini["Online"]["ExtendedHeartbeat"]);
 
 	if (Core::Windowed || Core::Borderless)
 		GameAddresses::Addresses["RenderFullScreen"][0] = false;
@@ -410,6 +394,7 @@ bool Core::Initialize() {
 
 	float fpsCap = std::stof(Ini["Display"]["FPSLimit"]);
 	float cutCap = std::stof(Ini["Display"]["CinematicFPS"]);
+	float netTPSCap = std::stof(Ini["Online"]["Rate"]);
 
 	if (fpsCap <= 0.0)
 		GameDelta = 0.0;
@@ -428,6 +413,19 @@ bool Core::Initialize() {
 	// Initialize MinHook.
 	if (MH_Initialize() != MH_OK)
 		return false;
+
+	if (netTPSCap > 0.0) {
+		if (MH_CreateHook((void*)GameAddresses::Addresses["UpdateNetworking"], &DetourUpdateNetworking,
+			reinterpret_cast<LPVOID*>(&fpUpdateNetworking)) != MH_OK)
+		{
+			return false;
+		}
+
+		if (MH_EnableHook((void*)GameAddresses::Addresses["UpdateNetworking"]) != MH_OK)
+		{
+			return false;
+		}
+	}
 
 	if (MH_CreateHook((void*)GameAddresses::Addresses["InitializeGame"], &DetourInitializeGame,
 		reinterpret_cast<LPVOID*>(&fpInitializeGame)) != MH_OK)

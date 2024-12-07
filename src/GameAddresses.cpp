@@ -65,5 +65,10 @@ bool GameAddresses::Initialize() {
 	if (!RegisterAddress("DebugPrint", (char*)0x00ab75b0)) return false;
 	// [edi+4] has outfit hash
 	if (!RegisterAddress("OutfitUnlockJump", (char*)0x00878007)) return false;
+	if (!RegisterAddress("UpdateNetworking", (char*)0x008c9d60)) return false;
+	if (!RegisterAddress("online_disable_heartbeat", (char*)0x00dec1a9)) return false;
+	if (!RegisterAddress("disable_initial_login_dialog", (char*)0x00dec09c)) return false;
+	if (!RegisterAddress("online_normal_heart_beat", (char*)0x00debed8)) return false;
+	if (!RegisterAddress("online_extended_heart_beat", (char*)0x00debedc)) return false;
 	return true;
 }

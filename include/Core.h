@@ -14,6 +14,7 @@ public:
 	static bool Windowed;
 	static bool FixOutfitUnlocks;
 	static int FastAffinity;
+	static float NetworkingDelta;
 private:
 	static Core* _instance;
 };
