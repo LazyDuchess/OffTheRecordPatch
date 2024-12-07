@@ -53,7 +53,6 @@ bool GameAddresses::Initialize() {
 	if (!RegisterAddress("suspend_on_lost_focus", (char*)0x00dec19f)) return false;
 	if (!RegisterAddress("InitializeGame", (char*)0x007e7040)) return false;
 	if (!RegisterAddress("InitializeController", (char*)0x00ac0580)) return false;
-	// look into getting non xbox 360 controllers working?
 	if (!RegisterAddress("gController", (char*)0x00e180b0)) return false;
 	if (!RegisterAddress("ControllerInputDevice", (char*)0x00ac00b0)) return false;
 	if (!RegisterAddress("GetInputs", (char*)0x00abba60)) return false;

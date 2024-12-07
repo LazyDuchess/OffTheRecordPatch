@@ -9,6 +9,7 @@
 #include <dinput.h>
 #include "SteamAPI.h"
 #include "outfits.h"
+//#define NET_DEBUG
 
 typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
@@ -137,6 +138,9 @@ void __fastcall DetourUpdateNetworking(void* me, void* _, float deltaTime) {
 	float delta = std::chrono::duration_cast<std::chrono::duration<float>>(currentNetTime - beginNetTimePoint).count();
 	if (delta >= Core::NetworkingDelta) {
 		beginNetTimePoint = currentNetTime;
+#ifdef NET_DEBUG
+		printf("Updating network. Delta: %f. Target Delta: %f\n", delta, Core::NetworkingDelta);
+#endif
 		return fpUpdateNetworking(me, delta);
 	}
 }
@@ -282,7 +286,7 @@ void __stdcall DetourInitializeGame() {
 		EnableJumpMenu();
 
 	GameAddresses::Addresses["OverrideRenderSettings"][0] = true;
-	GameAddresses::Addresses["disable_initial_login_dialog"][0] = true;
+	//GameAddresses::Addresses["disable_initial_login_dialog"][0] = true;
 	((float*)GameAddresses::Addresses["online_normal_heart_beat"])[0] = std::stof(Core::Ini["Online"]["Heartbeat"]);
 	((float*)GameAddresses::Addresses["online_extended_heart_beat"])[0] = std::stof(Core::Ini["Online"]["ExtendedHeartbeat"]);
 
@@ -395,6 +399,8 @@ bool Core::Initialize() {
 	float fpsCap = std::stof(Ini["Display"]["FPSLimit"]);
 	float cutCap = std::stof(Ini["Display"]["CinematicFPS"]);
 	float netTPSCap = std::stof(Ini["Online"]["Rate"]);
+
+	Core::NetworkingDelta = 1 / netTPSCap;
 
 	if (fpsCap <= 0.0)
 		GameDelta = 0.0;
