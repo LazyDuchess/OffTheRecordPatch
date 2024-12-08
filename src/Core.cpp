@@ -15,12 +15,14 @@ typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
 typedef LONG (WINAPI* SETWINDOWLONGW)(HWND, int, LONG);
 typedef HWND (WINAPI* CREATEWINDOWEXW)(DWORD, LPCWSTR, LPCWSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
 typedef void(__stdcall* INITIALIZEGAME)();
+typedef int(__thiscall* UPDATESYSTEMS)(void*, float);
 
 DEBUGPRINT fpDebugPrint = NULL;
 INITIALIZEGAME fpInitializeGame = NULL;
 CREATEWINDOWEXW fpCreateWindowExW = NULL;
 SETWINDOWLONGW fpSetWindowLongW = NULL;
 SETWINDOWPOS fpSetWindowPos = NULL;
+UPDATESYSTEMS fpUpdateSystems = NULL;
 
 mINI::INIStructure Core::Ini;
 Core* Core::_instance = nullptr;
@@ -31,6 +33,8 @@ bool Core::Borderless = false;
 bool Core::Windowed = false;
 int Core::FastAffinity = 0;
 bool Core::FixOutfitUnlocks = true;
+float Core::DeltaTime = 0;
+float Core::AdjustedDeltaTime = 0;
 
 static DWORD AffinityMask = 1;
 
@@ -118,6 +122,26 @@ void HookFramerate() {
 	float* deltaMemLoc = &Core::CutsceneDelta;
 	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["CutsceneFPS"], &fpsMemLoc, 4);
 	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["CutsceneDelta"], &deltaMemLoc, 4);
+}
+
+float targetDeltaTime = 0.033;
+
+int __fastcall DetourUpdateSystems(void* me, void* _, float deltaTime) {
+	Core::DeltaTime = deltaTime;
+	Core::AdjustedDeltaTime = deltaTime / targetDeltaTime;
+	return fpUpdateSystems(me, deltaTime);
+}
+
+void __declspec(naked) AmmoDepleteHook() {
+	__asm {
+		// calculate ammo deplete
+		movss xmm1, [Core::AdjustedDeltaTime]
+		mulss xmm0, xmm1
+		movss dword ptr [esp + 0xc], xmm0
+		// return to code
+		mov eax, 0x0066ef63
+		jmp eax
+	}
 }
 
 void __cdecl DetourDebugPrint(int debugId, int verbosity, char* str, ...) {
@@ -400,6 +424,20 @@ bool Core::Initialize() {
 	// Initialize MinHook.
 	if (MH_Initialize() != MH_OK)
 		return false;
+
+	if (MH_CreateHook((void*)GameAddresses::Addresses["UpdateSystems"], &DetourUpdateSystems,
+		reinterpret_cast<LPVOID*>(&fpUpdateSystems)) != MH_OK)
+	{
+		return false;
+	}
+	if (MH_EnableHook((void*)GameAddresses::Addresses["UpdateSystems"]) != MH_OK)
+	{
+		return false;
+	}
+
+	if (Ini["Fixes"]["FramerateDependency"] == "true") {
+		Inject::MakeJMP((BYTE*)GameAddresses::Addresses["AmmoDepleteInstruction"], (DWORD)AmmoDepleteHook, 6);
+	}
 
 	if (MH_CreateHook((void*)GameAddresses::Addresses["InitializeGame"], &DetourInitializeGame,
 		reinterpret_cast<LPVOID*>(&fpInitializeGame)) != MH_OK)

@@ -75,5 +75,7 @@ bool GameAddresses::Initialize() {
 	if (!RegisterAddress("Online40RatePtr", (char*)(0x008b2d2d + 4))) return false;
 	if (!RegisterAddress("Online100RatePtr", (char*)(0x008b2d4d + 4))) return false;
 	if (!RegisterAddress("AutoAimTestInstruction", (char*)(0x006AD60F))) return false;
+	if (!RegisterAddress("AmmoDepleteInstruction", (char*)(0x0066ef5d))) return false;
+	if (!RegisterAddress("UpdateSystems", (char*)(0x007e61a0))) return false;
 	return true;
 }
