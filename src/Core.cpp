@@ -16,14 +16,12 @@ typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
 typedef LONG (WINAPI* SETWINDOWLONGW)(HWND, int, LONG);
 typedef HWND (WINAPI* CREATEWINDOWEXW)(DWORD, LPCWSTR, LPCWSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
 typedef void(__stdcall* INITIALIZEGAME)();
-typedef void(__thiscall* UPDATENETWORKING)(void*,float);
 
 DEBUGPRINT fpDebugPrint = NULL;
 INITIALIZEGAME fpInitializeGame = NULL;
 CREATEWINDOWEXW fpCreateWindowExW = NULL;
 SETWINDOWLONGW fpSetWindowLongW = NULL;
 SETWINDOWPOS fpSetWindowPos = NULL;
-UPDATENETWORKING fpUpdateNetworking = NULL;
 
 mINI::INIStructure Core::Ini;
 Core* Core::_instance = nullptr;
@@ -34,7 +32,6 @@ bool Core::Borderless = false;
 bool Core::Windowed = false;
 int Core::FastAffinity = 0;
 bool Core::FixOutfitUnlocks = true;
-float Core::NetworkingDelta = 0.0;
 
 static DWORD AffinityMask = 1;
 
@@ -124,36 +121,6 @@ void HookFramerate() {
 	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["CutsceneDelta"], &deltaMemLoc, 4);
 }
 
-typedef std::chrono::steady_clock steady_clock;
-
-bool netTimeInitialized = false;
-steady_clock::time_point beginNetTimePoint;
-
-BYTE SteamSocketSendType = 2;
-DWORD SteamSocketJumpTarget = 0x00911051;
-#ifdef NET_DEBUG
-int SteamSocketDataSent = 0;
-#endif
-
-void __fastcall DetourUpdateNetworking(void* me, void* _, float deltaTime) {
-	steady_clock::time_point currentNetTime = steady_clock::now();
-	if (!netTimeInitialized) {
-		beginNetTimePoint = currentNetTime;
-		netTimeInitialized = true;
-	}
-	float delta = std::chrono::duration_cast<std::chrono::duration<float>>(currentNetTime - beginNetTimePoint).count();
-	if (delta >= Core::NetworkingDelta) {
-		beginNetTimePoint = currentNetTime;
-#ifdef NET_DEBUG
-		printf("Sent %i packets this tick.\n", SteamSocketDataSent);
-		SteamSocketDataSent = 0;
-#endif
-		SteamSocketSendType = 0;
-		fpUpdateNetworking(me, delta);
-		SteamSocketSendType = 2;
-	}
-}
-
 void __cdecl DetourDebugPrint(int debugId, int verbosity, char* str, ...) {
 	va_list args;
 	va_start(args, str);
@@ -186,22 +153,6 @@ HWND WINAPI DetourCreateWindowExW(DWORD dwExStyle, LPCWSTR lpClassName, LPCWSTR 
 	}
 	HWND res = fpCreateWindowExW(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
 	return res;
-}
-
-void __declspec(naked) SteamSocketSendDataHook() {
-	__asm {
-		//hook
-		push [SteamSocketSendType]
-#ifdef NET_DEBUG
-		inc [SteamSocketDataSent]
-#endif
-
-		push ebx
-		push edx
-		mov edx, [edi]
-		mov ecx, SteamSocketJumpTarget
-		jmp ecx
-	}
 }
 
 bool __stdcall OutfitUnlocked(Outfits outfit) {
@@ -278,19 +229,6 @@ void EnableJumpMenu() {
 	((bool*)0x00dec09b)[0] = true;
 }
 
-/*
-float OnlineRate = 0.033;
-float OnlineMaxSentRate = 99999.0;
-float Online40Rate = 20.0;
-float Online100Rate = 20.0;
-
-float OnlineRate = 100.0;
-float OnlineMaxSentRate = 1.0;
-float Online40Rate = 500.0;
-float Online100Rate = 1.0;
-*/
-float OnlineMaxSentRate = 0.0;
-
 void __stdcall DetourInitializeGame() {
 	if (Core::FastAffinity > 0) {
 		printf("Using %i cores for game logic.\n", Core::FastAffinity);
@@ -299,18 +237,6 @@ void __stdcall DetourInitializeGame() {
 
 	fpInitializeGame();
 
-	float* maxSentRateMemLoc = &OnlineMaxSentRate;
-	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["OnlineMaxSentRatePtr"], &maxSentRateMemLoc, 4);
-	/*
-	float* maxSentRateMemLoc = &OnlineMaxSentRate;
-	float* sendRateMemLoc = &OnlineRate;
-	float* fortyRateMemLoc = &Online40Rate;
-	float* hundredRateMemLoc = &Online100Rate;
-	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["OnlineMaxSentRatePtr"], &maxSentRateMemLoc, 4);
-	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["OnlineRatePtr"], &sendRateMemLoc, 4);
-	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["Online40RatePtr"], &fortyRateMemLoc, 4);
-	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["Online100RatePtr"], &hundredRateMemLoc, 4);
-	*/
 	if (Core::Ini["Online"]["DisableHeartbeat"] == "true")
 		GameAddresses::Addresses["online_disable_heartbeat"][0] = true;
 
@@ -448,10 +374,6 @@ bool Core::Initialize() {
 
 	float fpsCap = std::stof(Ini["Display"]["FPSLimit"]);
 	float cutCap = std::stof(Ini["Display"]["CinematicFPS"]);
-	float netTPSCap = std::stof(Ini["Online"]["Rate"]);
-
-	if (netTPSCap > 0.0)
-		Core::NetworkingDelta = 1 / netTPSCap;
 
 	if (fpsCap <= 0.0)
 		GameDelta = 0.0;
@@ -470,17 +392,6 @@ bool Core::Initialize() {
 	// Initialize MinHook.
 	if (MH_Initialize() != MH_OK)
 		return false;
-
-	if (MH_CreateHook((void*)GameAddresses::Addresses["UpdateNetworking"], &DetourUpdateNetworking,
-		reinterpret_cast<LPVOID*>(&fpUpdateNetworking)) != MH_OK)
-	{
-		return false;
-	}
-
-	if (MH_EnableHook((void*)GameAddresses::Addresses["UpdateNetworking"]) != MH_OK)
-	{
-		return false;
-	}
 
 	if (MH_CreateHook((void*)GameAddresses::Addresses["InitializeGame"], &DetourInitializeGame,
 		reinterpret_cast<LPVOID*>(&fpInitializeGame)) != MH_OK)
@@ -511,10 +422,6 @@ bool Core::Initialize() {
 	}
 	else {
 		Inject::MakeJMP((BYTE*)GameAddresses::Addresses["OutfitUnlockJump"], (DWORD)OutfitJumpHook, 7);
-	}
-
-	if (Ini["Online"]["Unreliable"] == "true") {
-		Inject::MakeJMP((BYTE*)GameAddresses::Addresses["SteamSocketSendDataHook"], (DWORD)SteamSocketSendDataHook, 6);
 	}
 
 	if (Ini["Advanced"]["Debug"] == "true") {
