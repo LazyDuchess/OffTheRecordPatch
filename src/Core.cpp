@@ -9,7 +9,6 @@
 #include <dinput.h>
 #include "SteamAPI.h"
 #include "outfits.h"
-//#define NET_DEBUG
 
 typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
