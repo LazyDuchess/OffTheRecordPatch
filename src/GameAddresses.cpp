@@ -70,5 +70,9 @@ bool GameAddresses::Initialize() {
 	if (!RegisterAddress("online_normal_heart_beat", (char*)0x00debed8)) return false;
 	if (!RegisterAddress("online_extended_heart_beat", (char*)0x00debedc)) return false;
 	if (!RegisterAddress("SteamSocketSendDataHook", (char*)0x0091104b)) return false;
+	if (!RegisterAddress("OnlineMaxSentRatePtr", (char*)0x008b2d41)) return false;
+	if (!RegisterAddress("OnlineRatePtr", (char*)(0x008b2cfb + 4))) return false;
+	if (!RegisterAddress("Online40RatePtr", (char*)(0x008b2d2d + 4))) return false;
+	if (!RegisterAddress("Online100RatePtr", (char*)(0x008b2d4d + 4))) return false;
 	return true;
 }

@@ -278,6 +278,19 @@ void EnableJumpMenu() {
 	((bool*)0x00dec09b)[0] = true;
 }
 
+/*
+float OnlineRate = 0.033;
+float OnlineMaxSentRate = 99999.0;
+float Online40Rate = 20.0;
+float Online100Rate = 20.0;
+
+float OnlineRate = 100.0;
+float OnlineMaxSentRate = 1.0;
+float Online40Rate = 500.0;
+float Online100Rate = 1.0;
+*/
+float OnlineMaxSentRate = 0.0;
+
 void __stdcall DetourInitializeGame() {
 	if (Core::FastAffinity > 0) {
 		printf("Using %i cores for game logic.\n", Core::FastAffinity);
@@ -286,6 +299,18 @@ void __stdcall DetourInitializeGame() {
 
 	fpInitializeGame();
 
+	float* maxSentRateMemLoc = &OnlineMaxSentRate;
+	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["OnlineMaxSentRatePtr"], &maxSentRateMemLoc, 4);
+	/*
+	float* maxSentRateMemLoc = &OnlineMaxSentRate;
+	float* sendRateMemLoc = &OnlineRate;
+	float* fortyRateMemLoc = &Online40Rate;
+	float* hundredRateMemLoc = &Online100Rate;
+	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["OnlineMaxSentRatePtr"], &maxSentRateMemLoc, 4);
+	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["OnlineRatePtr"], &sendRateMemLoc, 4);
+	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["Online40RatePtr"], &fortyRateMemLoc, 4);
+	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["Online100RatePtr"], &hundredRateMemLoc, 4);
+	*/
 	if (Core::Ini["Online"]["DisableHeartbeat"] == "true")
 		GameAddresses::Addresses["online_disable_heartbeat"][0] = true;
 
