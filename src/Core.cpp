@@ -229,6 +229,12 @@ void EnableJumpMenu() {
 	((bool*)0x00dec09b)[0] = true;
 }
 
+char autoAimPatch[] = { 0x39, 0xED };
+
+void FixJumpAttackAutoAim() {
+	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["AutoAimTestInstruction"], autoAimPatch, 2);
+}
+
 void __stdcall DetourInitializeGame() {
 	if (Core::FastAffinity > 0) {
 		printf("Using %i cores for game logic.\n", Core::FastAffinity);
@@ -260,6 +266,9 @@ void __stdcall DetourInitializeGame() {
 
 	if (Core::Ini["Cheats"]["JumpMenu"] == "true")
 		EnableJumpMenu();
+
+	if (Core::Ini["Fixes"]["FixJumpAttackAutoAim"] == "true")
+		FixJumpAttackAutoAim();
 
 	GameAddresses::Addresses["OverrideRenderSettings"][0] = true;
 	//GameAddresses::Addresses["disable_initial_login_dialog"][0] = true;
