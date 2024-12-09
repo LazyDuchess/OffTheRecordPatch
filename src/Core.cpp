@@ -9,6 +9,7 @@
 #include <dinput.h>
 #include "SteamAPI.h"
 #include "outfits.h"
+#include "dr2/Player.h"
 
 typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
@@ -35,8 +36,29 @@ int Core::FastAffinity = 0;
 bool Core::FixOutfitUnlocks = true;
 float Core::DeltaTime = 0;
 float Core::AdjustedDeltaTime = 0;
+bool Core::PPCheat = false;
+bool Core::MoneyCheat = false;
+bool Core::GodMode = false;
 
 static DWORD AffinityMask = 1;
+
+void GiveHealth() {
+	DR2::PlayerData* playerPtr = ((DR2::PlayerData**)0x00dede28)[0];
+	if (!playerPtr) return;
+	playerPtr->stats->health = playerPtr->stats->GetMaxHealth();
+}
+
+void GiveMoney() {
+	DR2::PlayerData* playerPtr = ((DR2::PlayerData**)0x00dede28)[0];
+	if (!playerPtr) return;
+	playerPtr->stats->money = 999999999;
+}
+
+void GivePP() {
+	DR2::PlayerData* playerPtr = ((DR2::PlayerData**)0x00dede28)[0];
+	if (!playerPtr) return;
+	playerPtr->stats->pp = 999999999;
+}
 
 DWORD CreateAffinityMask(int numCoresToUse) {
 	int totalCores = std::thread::hardware_concurrency();
@@ -127,6 +149,12 @@ void HookFramerate() {
 float targetDeltaTime = 0.033;
 
 int __fastcall DetourUpdateSystems(void* me, void* _, float deltaTime) {
+	if (Core::PPCheat)
+		GivePP();
+	if (Core::MoneyCheat)
+		GiveMoney();
+	if (Core::GodMode)
+		GiveHealth();
 	Core::DeltaTime = deltaTime;
 	Core::AdjustedDeltaTime = deltaTime / targetDeltaTime;
 	return fpUpdateSystems(me, deltaTime);
@@ -272,8 +300,10 @@ void __stdcall DetourInitializeGame() {
 	if (Core::Ini["General"]["SkipLogos"] == "true")
 		GameAddresses::Addresses["skip_logos"][0] = true;
 
-	if (Core::Ini["Cheats"]["GodMode"] == "true")
+	if (Core::Ini["Cheats"]["GodMode"] == "true") {
 		GameAddresses::Addresses["chuck_in_god_mode"][0] = true;
+		Core::GodMode = true;
+	}
 
 	if (Core::Ini["Cheats"]["GhostMode"] == "true")
 		GameAddresses::Addresses["chuck_ghost_mode"][0] = true;
@@ -462,6 +492,9 @@ bool Core::Initialize() {
 	{
 		return false;
 	}
+
+	Core::MoneyCheat = Ini["Cheats"]["InfiniteMoney"] == "true";
+	Core::PPCheat = Ini["Cheats"]["MaxPP"] == "true";
 
 	if (Ini["Cheats"]["OutfitsUnlocked"] == "true") {
 		Inject::Nop((BYTE*)GameAddresses::Addresses["OutfitUnlockJump"], 2);

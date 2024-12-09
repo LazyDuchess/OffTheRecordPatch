@@ -16,6 +16,9 @@ public:
 	static int FastAffinity;
 	static float DeltaTime;
 	static float AdjustedDeltaTime;
+	static bool MoneyCheat;
+	static bool PPCheat;
+	static bool GodMode;
 private:
 	static Core* _instance;
 };
