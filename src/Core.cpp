@@ -14,6 +14,7 @@
 #include "dr2/tPushableGoalInfo.h"
 #include "dr2/cFrontEnd.h"
 #include <timeapi.h>
+#include "config.h"
 
 typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
@@ -31,26 +32,14 @@ SETWINDOWPOS fpSetWindowPos = NULL;
 UPDATESYSTEMS fpUpdateSystems = NULL;
 DETERMINEASSIGNMENTPUSHABLE fpDetermineAssignmentPushable = NULL;
 
-mINI::INIStructure Core::Ini;
 Core* Core::_instance = nullptr;
-float Core::CutsceneFPS = 30.0;
-float Core::CutsceneDelta = 1.0 / 30.0;
-float Core::GameDelta = 1.0 / 120.0;
-bool Core::Borderless = false;
-bool Core::Windowed = false;
-int Core::FastAffinity = 0;
-bool Core::FixOutfitUnlocks = true;
-float Core::DeltaTime = 0;
-float Core::AdjustedDeltaTime = 0;
-bool Core::PPCheat = false;
-bool Core::MoneyCheat = false;
-bool Core::GodMode = false;
-bool Core::UnlockFPSDuringLoading = false;
+float Core::DeltaTime = 0.0;
+float Core::AdjustedDeltaTime = 0.0;
 
 static DWORD AffinityMask = 1;
 
 void __stdcall WaitForNextFrame(float deltaTime) {
-	float howLongToWaitInSecs = Core::GameDelta - deltaTime;
+	float howLongToWaitInSecs = Config::FPSDelta - deltaTime;
 	auto howLongToWaitInMS = std::chrono::duration<float, std::milli>(howLongToWaitInSecs * 1000.0f);
 	if (howLongToWaitInMS.count() < 1.0f)
 		std::this_thread::yield();
@@ -59,7 +48,7 @@ void __stdcall WaitForNextFrame(float deltaTime) {
 }
 
 void __stdcall UpdateFPS() {
-	if (!Core::UnlockFPSDuringLoading) return;
+	if (!Config::UnlockFPSDuringLoading) return;
 	auto fe = DR2::cFrontEnd::GetInstance();
 	if (fe && fe->ScreenManager)
 	{
@@ -68,7 +57,7 @@ void __stdcall UpdateFPS() {
 		if (loading)
 			memcpy_s(GameAddresses::Addresses["FPSLimit"], sizeof(float), &uncapDelta, sizeof(float));
 		else
-			memcpy_s(GameAddresses::Addresses["FPSLimit"], sizeof(float), &Core::GameDelta, sizeof(float));
+			memcpy_s(GameAddresses::Addresses["FPSLimit"], sizeof(float), &Config::FPSDelta, sizeof(float));
 	}
 }
 
@@ -208,9 +197,9 @@ bool IsDR2Window(HWND hWnd) {
 
 // hook tuah
 void HookFramerate() {
-	memcpy_s(GameAddresses::Addresses["FPSLimit"], sizeof(float), &Core::GameDelta, sizeof(float));
-	float* fpsMemLoc = &Core::CutsceneFPS;
-	float* deltaMemLoc = &Core::CutsceneDelta;
+	memcpy_s(GameAddresses::Addresses["FPSLimit"], sizeof(float), &Config::FPSDelta, sizeof(float));
+	float* fpsMemLoc = &Config::CinematicFPS;
+	float* deltaMemLoc = &Config::CinematicFPSDelta;
 	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["CutsceneFPS"], &fpsMemLoc, 4);
 	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["CutsceneDelta"], &deltaMemLoc, 4);
 }
@@ -218,11 +207,11 @@ void HookFramerate() {
 float targetDeltaTime = 0.033;
 
 int __fastcall DetourUpdateSystems(void* me, void* _, float deltaTime) {
-	if (Core::PPCheat)
+	if (Config::MaxPP)
 		GivePP();
-	if (Core::MoneyCheat)
+	if (Config::InfiniteMoney)
 		GiveMoney();
-	if (Core::GodMode)
+	if (Config::GodMode)
 		GiveHealth();
 	Core::DeltaTime = deltaTime;
 	Core::AdjustedDeltaTime = deltaTime / targetDeltaTime;
@@ -260,7 +249,7 @@ void __cdecl DetourDebugPrint(int debugId, int verbosity, char* str, ...) {
 }
 
 BOOL WINAPI DetourSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags) {
-	if (IsDR2Window(hWnd) && Core::Borderless) {
+	if (IsDR2Window(hWnd) && Config::Borderless) {
 		printf("Setting game window pos.\n");
 		RECT desktopRect;
 		GetWindowRect(GetDesktopWindow(), &desktopRect);
@@ -270,7 +259,7 @@ BOOL WINAPI DetourSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, in
 }
 
 LONG WINAPI DetourSetWindowLongW(HWND hWnd, int nIndex, LONG dwNewLong) {
-	if (IsDR2Window(hWnd) && nIndex == GWL_STYLE && Core::Borderless) {
+	if (IsDR2Window(hWnd) && nIndex == GWL_STYLE && Config::Borderless) {
 		printf("Adjusting game window.\n");
 		return fpSetWindowLongW(hWnd, nIndex, WS_POPUP | WS_VISIBLE);
 	}
@@ -278,7 +267,7 @@ LONG WINAPI DetourSetWindowLongW(HWND hWnd, int nIndex, LONG dwNewLong) {
 }
 
 HWND WINAPI DetourCreateWindowExW(DWORD dwExStyle, LPCWSTR lpClassName, LPCWSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam) {
-	if (lpWindowName && IsDR2WindowTitle(lpWindowName) && Core::Borderless) {
+	if (lpWindowName && IsDR2WindowTitle(lpWindowName) && Config::Borderless) {
 		printf("Creating game window.\n");
 		dwStyle = WS_POPUP;
 	}
@@ -287,7 +276,7 @@ HWND WINAPI DetourCreateWindowExW(DWORD dwExStyle, LPCWSTR lpClassName, LPCWSTR 
 }
 
 bool __stdcall OutfitUnlocked(Outfits outfit) {
-	if (!Core::FixOutfitUnlocks) return false;
+	if (!Config::FixOutfitUnlocks) return false;
 
 	ISteamUserStats* stats = SteamAPI::SteamUserStats();
 	ISteamApps* apps = SteamAPI::SteamApps();
@@ -367,48 +356,46 @@ void FixJumpAttackAutoAim() {
 }
 
 void __stdcall DetourInitializeGame() {
-	if (Core::FastAffinity > 0) {
-		printf("Using %i cores for game logic.\n", Core::FastAffinity);
-		RunFastAffinity(Core::FastAffinity);
+	if (Config::FastAffinity > 0) {
+		printf("Using %i cores for game logic.\n", Config::FastAffinity);
+		RunFastAffinity(Config::FastAffinity);
 	}
 
 	fpInitializeGame();
 
-	if (Core::Ini["Online"]["DisableHeartbeat"] == "true")
+	if (Config::DisableHeartbeat)
 		GameAddresses::Addresses["online_disable_heartbeat"][0] = true;
 
-	if (Core::Ini["General"]["SkipLogos"] == "true")
+	if (Config::SkipLogos)
 		GameAddresses::Addresses["skip_logos"][0] = true;
 
-	if (Core::Ini["Cheats"]["GodMode"] == "true") {
+	if (Config::GodMode)
 		GameAddresses::Addresses["chuck_in_god_mode"][0] = true;
-		Core::GodMode = true;
-	}
 
-	if (Core::Ini["Cheats"]["GhostMode"] == "true")
+	if (Config::GhostMode)
 		GameAddresses::Addresses["chuck_ghost_mode"][0] = true;
 
-	if (Core::Ini["Cheats"]["PlayAsChuck"] == "true")
+	if (Config::PlayAsChuck)
 		GameAddresses::Addresses["frank_off"][0] = true;
 
-	if (Core::Ini["Cheats"]["Sprinting"] == "true")
+	if (Config::Sprinting)
 		GameAddresses::Addresses["enable_sprinting"][0] = true;
 
-	if (Core::Ini["Cheats"]["EverythingUnlocked"] == "true")
+	if (Config::EverythingUnlocked)
 		GameAddresses::Addresses["missions_everything_unlocked"][0] = true;
 
-	if (Core::Ini["Cheats"]["JumpMenu"] == "true")
+	if (Config::JumpMenu)
 		EnableJumpMenu();
 
-	if (Core::Ini["Fixes"]["FixJumpAttackAutoAim"] == "true")
+	if (Config::FixJumpAttackAutoAim)
 		FixJumpAttackAutoAim();
 
 	GameAddresses::Addresses["OverrideRenderSettings"][0] = true;
 	//GameAddresses::Addresses["disable_initial_login_dialog"][0] = true;
-	((float*)GameAddresses::Addresses["online_normal_heart_beat"])[0] = std::stof(Core::Ini["Online"]["Heartbeat"]);
-	((float*)GameAddresses::Addresses["online_extended_heart_beat"])[0] = std::stof(Core::Ini["Online"]["ExtendedHeartbeat"]);
+	((float*)GameAddresses::Addresses["online_normal_heart_beat"])[0] = Config::Heartbeat;
+	((float*)GameAddresses::Addresses["online_extended_heart_beat"])[0] = Config::ExtendedHeartbeat;
 
-	if (Core::Windowed || Core::Borderless)
+	if (Config::Windowed || Config::Borderless)
 		GameAddresses::Addresses["RenderFullScreen"][0] = false;
 
 	HookFramerate();
@@ -504,38 +491,17 @@ bool Core::Initialize() {
 	if (timeBeginPeriod(1) == TIMERR_NOERROR)
 		timeResolutionSet = true;
 	printf("Core initializing\n");
-	mINI::INIFile file("OffTheRecordPatch.ini");
-	file.read(Ini);
+	Config::Load();
 
-	if (Ini["General"]["Console"] == "true") {
+	if (Config::Console) {
 		AllocConsole();
 		freopen_s((FILE**)stdin, "CONIN$", "r", stdin);
 		freopen_s((FILE**)stdout, "CONOUT$", "w", stdout);
 		freopen_s((FILE**)stderr, "CONOUT$", "w", stderr);
 	}
 
-	if (Ini["Fixes"]["FixControllerSupport"] == "true")
+	if (Config::FixControllerSupport)
 		DetectController();
-
-	Core::FixOutfitUnlocks = Ini["Fixes"]["FixOutfitUnlocks"] == "true";
-	Core::Borderless = Ini["Display"]["Borderless"] == "true";
-	Core::Windowed = Ini["Display"]["Windowed"] == "true";
-	Core::FastAffinity = std::stoi(Ini["Advanced"]["FastAffinity"]);
-	Core::UnlockFPSDuringLoading = Ini["Display"]["UnlockFPSDuringLoading"] == "true";
-
-	float fpsCap = std::stof(Ini["Display"]["FPSLimit"]);
-	float cutCap = std::stof(Ini["Display"]["CinematicFPS"]);
-
-	if (fpsCap <= 0.0)
-		GameDelta = 0.0;
-	else
-		GameDelta = 1.0 / fpsCap;
-
-	if (cutCap <= 0.0)
-		cutCap = 30.0;
-
-	CutsceneFPS = cutCap;
-	CutsceneDelta = 1.0 / cutCap;
 
 	if (!GameAddresses::Initialize())
 		return false;
@@ -554,12 +520,12 @@ bool Core::Initialize() {
 		return false;
 	}
 
-	if (Ini["Fixes"]["FrameLimiter"] == "true") {
+	if (Config::FixFrameLimiter) {
 		Inject::MakeJMP((BYTE*)0x00905299, (DWORD)FrameLimiterHook1, 6);
 		Inject::MakeJMP((BYTE*)0x00905353, (DWORD)FrameLimiterHook2, 12);
 	}
 
-	if (Ini["Fixes"]["FramerateDependency"] == "true") {
+	if (Config::FixFramerateDependency) {
 		Inject::MakeJMP((BYTE*)GameAddresses::Addresses["AmmoDepleteInstruction"], (DWORD)AmmoDepleteHook, 6);
 
 		if (MH_CreateHook((void*)GameAddresses::Addresses["cPlayerAIPushableLogic::DetermineAssignment"], &DetourDetermineAssignmentPushable,
@@ -597,19 +563,16 @@ bool Core::Initialize() {
 		return false;
 	}
 
-	Core::MoneyCheat = Ini["Cheats"]["InfiniteMoney"] == "true";
-	Core::PPCheat = Ini["Cheats"]["MaxPP"] == "true";
-
 	Inject::MakeJMP((BYTE*)0x0090527c, (DWORD)MainLoopHook, 5);
 
-	if (Ini["Cheats"]["OutfitsUnlocked"] == "true") {
+	if (Config::OutfitsUnlocked) {
 		Inject::Nop((BYTE*)GameAddresses::Addresses["OutfitUnlockJump"], 2);
 	}
 	else {
 		Inject::MakeJMP((BYTE*)GameAddresses::Addresses["OutfitUnlockJump"], (DWORD)OutfitJumpHook, 7);
 	}
 
-	if (Ini["Advanced"]["Debug"] == "true") {
+	if (Config::Debug) {
 		if (MH_CreateHook((void*)GameAddresses::Addresses["DebugPrint"], &DetourDebugPrint,
 			reinterpret_cast<LPVOID*>(&fpDebugPrint)) != MH_OK)
 		{
