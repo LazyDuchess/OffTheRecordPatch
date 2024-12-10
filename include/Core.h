@@ -20,6 +20,7 @@ public:
 	static bool MoneyCheat;
 	static bool PPCheat;
 	static bool GodMode;
+	static bool UnlockFPSDuringLoading;
 private:
 	static Core* _instance;
 };

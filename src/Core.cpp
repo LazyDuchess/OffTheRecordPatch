@@ -12,6 +12,7 @@
 #include "dr2/Player.h"
 #include "dr2/tActorAssignment.h"
 #include "dr2/tPushableGoalInfo.h"
+#include "dr2/cFrontEnd.h"
 #include <timeapi.h>
 
 typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
@@ -44,6 +45,7 @@ float Core::AdjustedDeltaTime = 0;
 bool Core::PPCheat = false;
 bool Core::MoneyCheat = false;
 bool Core::GodMode = false;
+bool Core::UnlockFPSDuringLoading = false;
 
 static DWORD AffinityMask = 1;
 
@@ -54,6 +56,40 @@ void __stdcall WaitForNextFrame(float deltaTime) {
 		std::this_thread::yield();
 	else
 		std::this_thread::sleep_for(howLongToWaitInMS);
+}
+
+void __stdcall UpdateFPS() {
+	if (!Core::UnlockFPSDuringLoading) return;
+	auto fe = DR2::cFrontEnd::GetInstance();
+	if (fe && fe->ScreenManager)
+	{
+		bool loading = fe->IsLoadingScreenActive();
+		float uncapDelta = 0.0;
+		if (loading)
+			memcpy_s(GameAddresses::Addresses["FPSLimit"], sizeof(float), &uncapDelta, sizeof(float));
+		else
+			memcpy_s(GameAddresses::Addresses["FPSLimit"], sizeof(float), &Core::GameDelta, sizeof(float));
+	}
+}
+
+void __declspec(naked) MainLoopHook() {
+	__asm {
+		push edi
+		push esi
+		push edx
+		push ebp
+		push edx
+		call UpdateFPS
+		pop edx
+		pop ebp
+		pop edx
+		pop esi
+		pop edi
+		mov eax, 0x00ac3f00
+		call eax
+		mov ebx, 0x00905281
+		jmp ebx
+	}
 }
 
 void __declspec(naked) FrameLimiterHook1() {
@@ -485,6 +521,7 @@ bool Core::Initialize() {
 	Core::Borderless = Ini["Display"]["Borderless"] == "true";
 	Core::Windowed = Ini["Display"]["Windowed"] == "true";
 	Core::FastAffinity = std::stoi(Ini["Advanced"]["FastAffinity"]);
+	Core::UnlockFPSDuringLoading = Ini["Display"]["UnlockFPSDuringLoading"] == "true";
 
 	float fpsCap = std::stof(Ini["Display"]["FPSLimit"]);
 	float cutCap = std::stof(Ini["Display"]["CinematicFPS"]);
@@ -562,6 +599,8 @@ bool Core::Initialize() {
 
 	Core::MoneyCheat = Ini["Cheats"]["InfiniteMoney"] == "true";
 	Core::PPCheat = Ini["Cheats"]["MaxPP"] == "true";
+
+	Inject::MakeJMP((BYTE*)0x0090527c, (DWORD)MainLoopHook, 5);
 
 	if (Ini["Cheats"]["OutfitsUnlocked"] == "true") {
 		Inject::Nop((BYTE*)GameAddresses::Addresses["OutfitUnlockJump"], 2);
