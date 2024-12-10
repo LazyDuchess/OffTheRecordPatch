@@ -1,3 +1,5 @@
+#pragma once
+
 namespace DR2 {
 	class PlayerStats {
 	private:

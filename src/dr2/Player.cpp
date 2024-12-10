@@ -1,5 +1,5 @@
-#include "Player.h"
+#include "dr2/Player.h"
 
-PlayerData* DR2::GetLocalPlayer() {
+DR2::PlayerData* DR2::GetLocalPlayer() {
 	return ((PlayerData**)0x00dede28)[0];
 }

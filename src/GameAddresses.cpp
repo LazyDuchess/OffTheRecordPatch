@@ -77,5 +77,6 @@ bool GameAddresses::Initialize() {
 	if (!RegisterAddress("AutoAimTestInstruction", (char*)(0x006AD60F))) return false;
 	if (!RegisterAddress("AmmoDepleteInstruction", (char*)(0x0066ef5d))) return false;
 	if (!RegisterAddress("UpdateSystems", (char*)(0x007e61a0))) return false;
+	if (!RegisterAddress("cPlayerAIPushableLogic::DetermineAssignment", (char*)(0x004e73f0))) return false;
 	return true;
 }

@@ -10,6 +10,8 @@
 #include "SteamAPI.h"
 #include "outfits.h"
 #include "dr2/Player.h"
+#include "dr2/tActorAssignment.h"
+#include "dr2/tPushableGoalInfo.h"
 
 typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
@@ -17,6 +19,7 @@ typedef LONG (WINAPI* SETWINDOWLONGW)(HWND, int, LONG);
 typedef HWND (WINAPI* CREATEWINDOWEXW)(DWORD, LPCWSTR, LPCWSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
 typedef void(__stdcall* INITIALIZEGAME)();
 typedef int(__thiscall* UPDATESYSTEMS)(void*, float);
+typedef bool(__thiscall* DETERMINEASSIGNMENTPUSHABLE)(void*, void*, DR2::tActorAssignment*);
 
 DEBUGPRINT fpDebugPrint = NULL;
 INITIALIZEGAME fpInitializeGame = NULL;
@@ -24,6 +27,7 @@ CREATEWINDOWEXW fpCreateWindowExW = NULL;
 SETWINDOWLONGW fpSetWindowLongW = NULL;
 SETWINDOWPOS fpSetWindowPos = NULL;
 UPDATESYSTEMS fpUpdateSystems = NULL;
+DETERMINEASSIGNMENTPUSHABLE fpDetermineAssignmentPushable = NULL;
 
 mINI::INIStructure Core::Ini;
 Core* Core::_instance = nullptr;
@@ -158,6 +162,17 @@ int __fastcall DetourUpdateSystems(void* me, void* _, float deltaTime) {
 	Core::DeltaTime = deltaTime;
 	Core::AdjustedDeltaTime = deltaTime / targetDeltaTime;
 	return fpUpdateSystems(me, deltaTime);
+}
+
+bool __fastcall DetourDetermineAssignmentPushable(void* me, void* _, void* actor, DR2::tActorAssignment* assignment) {
+	bool res = fpDetermineAssignmentPushable(me, actor, assignment);
+	float ogRotAmt = assignment->mPushableInfo.mRotAmt;
+	float newRotAmt = ogRotAmt * Core::AdjustedDeltaTime;
+	// sometimes it flips the sign ??
+	if ((ogRotAmt < 0.0 && newRotAmt > 0.0) || (ogRotAmt > 0.0 && newRotAmt < 0.0))
+		newRotAmt = -newRotAmt;
+	assignment->mPushableInfo.mRotAmt = newRotAmt;
+	return res;
 }
 
 void __declspec(naked) AmmoDepleteHook() {
@@ -467,6 +482,16 @@ bool Core::Initialize() {
 
 	if (Ini["Fixes"]["FramerateDependency"] == "true") {
 		Inject::MakeJMP((BYTE*)GameAddresses::Addresses["AmmoDepleteInstruction"], (DWORD)AmmoDepleteHook, 6);
+
+		if (MH_CreateHook((void*)GameAddresses::Addresses["cPlayerAIPushableLogic::DetermineAssignment"], &DetourDetermineAssignmentPushable,
+			reinterpret_cast<LPVOID*>(&fpDetermineAssignmentPushable)) != MH_OK)
+		{
+			return false;
+		}
+		if (MH_EnableHook((void*)GameAddresses::Addresses["cPlayerAIPushableLogic::DetermineAssignment"]) != MH_OK)
+		{
+			return false;
+		}
 	}
 
 	if (MH_CreateHook((void*)GameAddresses::Addresses["InitializeGame"], &DetourInitializeGame,
