@@ -4,6 +4,7 @@
 class Core {
 public:
 	bool Initialize();
+	void Shutdown();
 	static bool Create();
 	static Core* GetInstance();
 	static mINI::INIStructure Ini;

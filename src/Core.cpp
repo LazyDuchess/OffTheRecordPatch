@@ -12,6 +12,7 @@
 #include "dr2/Player.h"
 #include "dr2/tActorAssignment.h"
 #include "dr2/tPushableGoalInfo.h"
+#include <timeapi.h>
 
 typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
@@ -45,6 +46,34 @@ bool Core::MoneyCheat = false;
 bool Core::GodMode = false;
 
 static DWORD AffinityMask = 1;
+
+void __stdcall WaitForNextFrame(float deltaTime) {
+	float howLongToWaitInSecs = Core::GameDelta - deltaTime;
+	auto howLongToWaitInMS = std::chrono::duration<float, std::milli>(howLongToWaitInSecs * 1000.0f);
+	if (howLongToWaitInMS.count() < 1.0f)
+		std::this_thread::yield();
+	else
+		std::this_thread::sleep_for(howLongToWaitInMS);
+}
+
+void __declspec(naked) FrameLimiterHook1() {
+	__asm {
+		fst[Core::DeltaTime]
+		mov edi, 0x00D6EE70
+		fld [edi]
+		mov edi, 0x0090529f
+		jmp edi
+	}
+}
+
+void __declspec(naked) FrameLimiterHook2() {
+	__asm {
+		push [Core::DeltaTime]
+		call WaitForNextFrame
+		mov edi, 0x0090535f
+		jmp edi
+	}
+}
 
 void GiveHealth() {
 	DR2::PlayerData* playerPtr = ((DR2::PlayerData**)0x00dede28)[0];
@@ -428,9 +457,17 @@ void DetectController() {
 	pDirectInput->EnumDevices(DI8DEVCLASS_GAMECTRL, _DIEnumDevCallback, 0, DIEDFL_ATTACHEDONLY);
 }
 
-bool Core::Initialize() {
-	printf("Core initializing\n");
+bool timeResolutionSet = false;
 
+void Core::Shutdown() {
+	if (timeResolutionSet)
+		timeEndPeriod(1);
+}
+
+bool Core::Initialize() {
+	if (timeBeginPeriod(1) == TIMERR_NOERROR)
+		timeResolutionSet = true;
+	printf("Core initializing\n");
 	mINI::INIFile file("OffTheRecordPatch.ini");
 	file.read(Ini);
 
@@ -478,6 +515,11 @@ bool Core::Initialize() {
 	if (MH_EnableHook((void*)GameAddresses::Addresses["UpdateSystems"]) != MH_OK)
 	{
 		return false;
+	}
+
+	if (Ini["Fixes"]["FrameLimiter"] == "true") {
+		Inject::MakeJMP((BYTE*)0x00905299, (DWORD)FrameLimiterHook1, 6);
+		Inject::MakeJMP((BYTE*)0x00905353, (DWORD)FrameLimiterHook2, 12);
 	}
 
 	if (Ini["Fixes"]["FramerateDependency"] == "true") {
