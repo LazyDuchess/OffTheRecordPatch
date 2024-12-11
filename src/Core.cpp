@@ -16,6 +16,7 @@
 #include "config.h"
 #include "Addresses.h"
 #include "Logging.h"
+#include "PatchVersion.h"
 
 typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
@@ -494,6 +495,8 @@ bool Core::Initialize() {
 		freopen_s((FILE**)stdout, "CONOUT$", "w", stdout);
 		freopen_s((FILE**)stderr, "CONOUT$", "w", stderr);
 	}
+
+	Log("Off The Record Patch %s\n", Version);
 
 	if (timeBeginPeriod(1) == TIMERR_NOERROR)
 		timeResolutionSet = true;
