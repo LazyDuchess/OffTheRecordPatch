@@ -2,7 +2,6 @@
 #include "Core.h"
 #include "iostream"
 #include "MinHook.h"
-#include "GameAddresses.h"
 #include <tlhelp32.h>
 #include "inject.h"
 #include <thread>
@@ -15,6 +14,7 @@
 #include "dr2/cFrontEnd.h"
 #include <timeapi.h>
 #include "config.h"
+#include "Addresses.h"
 
 typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
@@ -55,9 +55,9 @@ void __stdcall UpdateFPS() {
 		bool loading = fe->IsLoadingScreenActive();
 		float uncapDelta = 0.0;
 		if (loading)
-			memcpy_s(GameAddresses::Addresses["FPSLimit"], sizeof(float), &uncapDelta, sizeof(float));
+			memcpy_s(Addresses::FPSLimit, sizeof(float), &uncapDelta, sizeof(float));
 		else
-			memcpy_s(GameAddresses::Addresses["FPSLimit"], sizeof(float), &Config::FPSDelta, sizeof(float));
+			memcpy_s(Addresses::FPSLimit, sizeof(float), &Config::FPSDelta, sizeof(float));
 	}
 }
 
@@ -197,11 +197,11 @@ bool IsDR2Window(HWND hWnd) {
 
 // hook tuah
 void HookFramerate() {
-	memcpy_s(GameAddresses::Addresses["FPSLimit"], sizeof(float), &Config::FPSDelta, sizeof(float));
+	memcpy_s(Addresses::FPSLimit, sizeof(float), &Config::FPSDelta, sizeof(float));
 	float* fpsMemLoc = &Config::CinematicFPS;
 	float* deltaMemLoc = &Config::CinematicFPSDelta;
-	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["CutsceneFPS"], &fpsMemLoc, 4);
-	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["CutsceneDelta"], &deltaMemLoc, 4);
+	Inject::WriteToMemory((DWORD)Addresses::CutsceneFPS, &fpsMemLoc, 4);
+	Inject::WriteToMemory((DWORD)Addresses::CutsceneDelta, &deltaMemLoc, 4);
 }
 
 float targetDeltaTime = 0.033;
@@ -347,7 +347,7 @@ void EnableJumpMenu() {
 char autoAimPatch[] = { 0x39, 0xED };
 
 void FixJumpAttackAutoAim() {
-	Inject::WriteToMemory((DWORD)GameAddresses::Addresses["AutoAimTestInstruction"], autoAimPatch, 2);
+	Inject::WriteToMemory((DWORD)Addresses::AutoAimTestInstruction, autoAimPatch, 2);
 }
 
 void __stdcall DetourInitializeGame() {
@@ -359,25 +359,25 @@ void __stdcall DetourInitializeGame() {
 	fpInitializeGame();
 
 	if (Config::DisableHeartbeat)
-		GameAddresses::Addresses["online_disable_heartbeat"][0] = true;
+		((bool*)Addresses::online_disable_heartbeat)[0] = true;
 
 	if (Config::SkipLogos)
-		GameAddresses::Addresses["skip_logos"][0] = true;
+		((bool*)Addresses::skip_logos)[0] = true;
 
 	if (Config::GodMode)
-		GameAddresses::Addresses["chuck_in_god_mode"][0] = true;
+		((bool*)Addresses::chuck_in_god_mode)[0] = true;
 
 	if (Config::GhostMode)
-		GameAddresses::Addresses["chuck_ghost_mode"][0] = true;
+		((bool*)Addresses::chuck_ghost_mode)[0] = true;
 
 	if (Config::PlayAsChuck)
-		GameAddresses::Addresses["frank_off"][0] = true;
+		((bool*)Addresses::frank_off)[0] = true;
 
 	if (Config::Sprinting)
-		GameAddresses::Addresses["enable_sprinting"][0] = true;
+		((bool*)Addresses::enable_sprinting)[0] = true;
 
 	if (Config::EverythingUnlocked)
-		GameAddresses::Addresses["missions_everything_unlocked"][0] = true;
+		((bool*)Addresses::missions_everything_unlocked)[0] = true;
 
 	if (Config::JumpMenu)
 		EnableJumpMenu();
@@ -385,13 +385,13 @@ void __stdcall DetourInitializeGame() {
 	if (Config::FixJumpAttackAutoAim)
 		FixJumpAttackAutoAim();
 
-	GameAddresses::Addresses["OverrideRenderSettings"][0] = true;
+	((bool*)Addresses::OverrideRenderSettings)[0] = true;
 	//GameAddresses::Addresses["disable_initial_login_dialog"][0] = true;
-	((float*)GameAddresses::Addresses["online_normal_heart_beat"])[0] = Config::Heartbeat;
-	((float*)GameAddresses::Addresses["online_extended_heart_beat"])[0] = Config::ExtendedHeartbeat;
+	((float*)Addresses::online_normal_heart_beat)[0] = Config::Heartbeat;
+	((float*)Addresses::online_extended_heart_beat)[0] = Config::ExtendedHeartbeat;
 
 	if (Config::Windowed || Config::Borderless)
-		GameAddresses::Addresses["RenderFullScreen"][0] = false;
+		((bool*)Addresses::RenderFullScreen)[0] = false;
 
 	HookFramerate();
 }
@@ -498,19 +498,16 @@ bool Core::Initialize() {
 	if (Config::FixControllerSupport)
 		DetectController();
 
-	if (!GameAddresses::Initialize())
-		return false;
-
 	// Initialize MinHook.
 	if (MH_Initialize() != MH_OK)
 		return false;
 
-	if (MH_CreateHook((void*)GameAddresses::Addresses["UpdateSystems"], &DetourUpdateSystems,
+	if (MH_CreateHook(Addresses::UpdateSystems, &DetourUpdateSystems,
 		reinterpret_cast<LPVOID*>(&fpUpdateSystems)) != MH_OK)
 	{
 		return false;
 	}
-	if (MH_EnableHook((void*)GameAddresses::Addresses["UpdateSystems"]) != MH_OK)
+	if (MH_EnableHook(Addresses::UpdateSystems) != MH_OK)
 	{
 		return false;
 	}
@@ -521,20 +518,20 @@ bool Core::Initialize() {
 	}
 
 	if (Config::FixFramerateDependency) {
-		Inject::MakeJMP((BYTE*)GameAddresses::Addresses["AmmoDepleteInstruction"], (DWORD)AmmoDepleteHook, 6);
+		Inject::MakeJMP((BYTE*)Addresses::AmmoDepleteInstruction, (DWORD)AmmoDepleteHook, 6);
 
-		if (MH_CreateHook((void*)GameAddresses::Addresses["cPlayerAIPushableLogic::DetermineAssignment"], &DetourDetermineAssignmentPushable,
+		if (MH_CreateHook(Addresses::PushableDetermineAssignment, &DetourDetermineAssignmentPushable,
 			reinterpret_cast<LPVOID*>(&fpDetermineAssignmentPushable)) != MH_OK)
 		{
 			return false;
 		}
-		if (MH_EnableHook((void*)GameAddresses::Addresses["cPlayerAIPushableLogic::DetermineAssignment"]) != MH_OK)
+		if (MH_EnableHook(Addresses::PushableDetermineAssignment) != MH_OK)
 		{
 			return false;
 		}
 	}
 
-	if (MH_CreateHook((void*)GameAddresses::Addresses["InitializeGame"], &DetourInitializeGame,
+	if (MH_CreateHook(Addresses::InitializeGame, &DetourInitializeGame,
 		reinterpret_cast<LPVOID*>(&fpInitializeGame)) != MH_OK)
 	{
 		return false;
@@ -561,25 +558,25 @@ bool Core::Initialize() {
 	Inject::MakeJMP((BYTE*)0x0090527c, (DWORD)MainLoopHook, 5);
 
 	if (Config::OutfitsUnlocked) {
-		Inject::Nop((BYTE*)GameAddresses::Addresses["OutfitUnlockJump"], 2);
+		Inject::Nop((BYTE*)Addresses::OutfitUnlockJump, 2);
 	}
 	else {
-		Inject::MakeJMP((BYTE*)GameAddresses::Addresses["OutfitUnlockJump"], (DWORD)OutfitJumpHook, 7);
+		Inject::MakeJMP((BYTE*)Addresses::OutfitUnlockJump, (DWORD)OutfitJumpHook, 7);
 	}
 
 	if (Config::Debug) {
-		if (MH_CreateHook((void*)GameAddresses::Addresses["DebugPrint"], &DetourDebugPrint,
+		if (MH_CreateHook(Addresses::DebugPrint, &DetourDebugPrint,
 			reinterpret_cast<LPVOID*>(&fpDebugPrint)) != MH_OK)
 		{
 			return false;
 		}
-		if (MH_EnableHook((void*)GameAddresses::Addresses["DebugPrint"]) != MH_OK)
+		if (MH_EnableHook(Addresses::DebugPrint) != MH_OK)
 		{
 			return false;
 		}
 	}
 
-	if (MH_EnableHook((void*)GameAddresses::Addresses["InitializeGame"]) != MH_OK)
+	if (MH_EnableHook(Addresses::InitializeGame) != MH_OK)
 	{
 		return false;
 	}
