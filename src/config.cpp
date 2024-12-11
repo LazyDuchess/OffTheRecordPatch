@@ -4,6 +4,7 @@
 
 namespace Config {
 
+	static const char* ConfigFilename = "OffTheRecordPatch.ini";
 	static mINI::INIStructure Ini;
 	bool Console;
 	bool SkipLogos;
@@ -46,17 +47,26 @@ namespace Config {
 	}
 
 	static std::string GetString(const std::string& section, const std::string& key, std::string defaultValue) {
-		if (!Ini[section].has(key)) return defaultValue;
+		if (!Has(section, key)) {
+			Ini[section][key] = defaultValue;
+			return defaultValue;
+		}
 		return Ini[section][key];
 	}
 
 	static int GetInt(const std::string& section, const std::string& key, int defaultValue) {
-		if (!Has(section, key)) return defaultValue;
+		if (!Has(section, key)) {
+			Ini[section][key] = std::to_string(defaultValue);
+			return defaultValue;
+		}
 		return std::stoi(Ini[section][key]);
 	}
 
 	static float GetFloat(const std::string& section, const std::string& key, float defaultValue) {
-		if (!Has(section, key)) return defaultValue;
+		if (!Has(section, key)) {
+			Ini[section][key] = std::to_string(defaultValue);
+			return defaultValue;
+		}
 		return std::stof(Ini[section][key]);
 	}
 
@@ -68,7 +78,10 @@ namespace Config {
 
 	void Load() {
 		bool iniExisted = false;
-		mINI::INIFile file("OffTheRecordPatch.ini");
+		mINI::INIFile file(ConfigFilename);
+
+		printf("Reading config from %s.\n", ConfigFilename);
+
 		if (file.read(Ini))
 			iniExisted = true;
 
@@ -107,7 +120,9 @@ namespace Config {
 		FPSDelta = 1.0 / FPSLimit;
 		CinematicFPSDelta = 1.0 / CinematicFPS;
 
-		if (!iniExisted)
+		if (!iniExisted) {
+			printf("Default config is being written to %s cause it didn't exist.", ConfigFilename);
 			file.generate(Ini, true);
+		}
 	}
 }
