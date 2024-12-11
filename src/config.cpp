@@ -67,8 +67,10 @@ namespace Config {
 	}
 
 	void Load() {
+		bool iniExisted = false;
 		mINI::INIFile file("OffTheRecordPatch.ini");
-		file.read(Ini);
+		if (file.read(Ini))
+			iniExisted = true;
 
 		Console = GetBool("General", "Console", false);
 		SkipLogos = GetBool("General", "SkipLogos", true);
@@ -104,5 +106,8 @@ namespace Config {
 
 		FPSDelta = 1.0 / FPSLimit;
 		CinematicFPSDelta = 1.0 / CinematicFPS;
+
+		if (!iniExisted)
+			file.generate(Ini, true);
 	}
 }
