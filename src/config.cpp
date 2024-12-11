@@ -1,6 +1,7 @@
 #include "config.h"
 #include "ini.h"
 #include <string>
+#include "Logging.h"
 
 namespace Config {
 
@@ -80,7 +81,7 @@ namespace Config {
 		bool iniExisted = false;
 		mINI::INIFile file(ConfigFilename);
 
-		printf("Reading config from %s.\n", ConfigFilename);
+		Log("Reading config from %s.\n", ConfigFilename);
 
 		if (file.read(Ini))
 			iniExisted = true;
@@ -121,7 +122,7 @@ namespace Config {
 		CinematicFPSDelta = 1.0 / CinematicFPS;
 
 		if (!iniExisted) {
-			printf("Default config is being written to %s cause it didn't exist.", ConfigFilename);
+			Log("Default config is being written to %s cause it didn't exist.", ConfigFilename);
 			file.generate(Ini, true);
 		}
 	}

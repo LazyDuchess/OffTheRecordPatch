@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include "config.h"
+#include <stdarg.h>
 
 inline void Log(const char* format, ...) {
     if (Config::Console) {
