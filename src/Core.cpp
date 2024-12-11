@@ -220,12 +220,7 @@ int __fastcall DetourUpdateSystems(void* me, void* _, float deltaTime) {
 
 bool __fastcall DetourDetermineAssignmentPushable(void* me, void* _, void* actor, DR2::tActorAssignment* assignment) {
 	bool res = fpDetermineAssignmentPushable(me, actor, assignment);
-	float ogRotAmt = assignment->mPushableInfo.mRotAmt;
-	float newRotAmt = ogRotAmt * Core::AdjustedDeltaTime;
-	// sometimes it flips the sign ??
-	if ((ogRotAmt < 0.0 && newRotAmt > 0.0) || (ogRotAmt > 0.0 && newRotAmt < 0.0))
-		newRotAmt = -newRotAmt;
-	assignment->mPushableInfo.mRotAmt = newRotAmt;
+	assignment->mPushableInfo.mRotAmt *= Core::AdjustedDeltaTime;
 	return res;
 }
 
