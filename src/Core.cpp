@@ -24,13 +24,13 @@ typedef void(__stdcall* INITIALIZEGAME)();
 typedef int(__thiscall* UPDATESYSTEMS)(void*, float);
 typedef bool(__thiscall* DETERMINEASSIGNMENTPUSHABLE)(void*, void*, DR2::tActorAssignment*);
 
-DEBUGPRINT fpDebugPrint = NULL;
-INITIALIZEGAME fpInitializeGame = NULL;
-CREATEWINDOWEXW fpCreateWindowExW = NULL;
-SETWINDOWLONGW fpSetWindowLongW = NULL;
-SETWINDOWPOS fpSetWindowPos = NULL;
-UPDATESYSTEMS fpUpdateSystems = NULL;
-DETERMINEASSIGNMENTPUSHABLE fpDetermineAssignmentPushable = NULL;
+static DEBUGPRINT fpDebugPrint = NULL;
+static INITIALIZEGAME fpInitializeGame = NULL;
+static CREATEWINDOWEXW fpCreateWindowExW = NULL;
+static SETWINDOWLONGW fpSetWindowLongW = NULL;
+static SETWINDOWPOS fpSetWindowPos = NULL;
+static UPDATESYSTEMS fpUpdateSystems = NULL;
+static DETERMINEASSIGNMENTPUSHABLE fpDetermineAssignmentPushable = NULL;
 
 Core* Core::_instance = nullptr;
 float Core::DeltaTime = 0.0;
@@ -38,7 +38,7 @@ float Core::AdjustedDeltaTime = 0.0;
 
 static DWORD AffinityMask = 1;
 
-void __stdcall WaitForNextFrame(float deltaTime) {
+static void __stdcall WaitForNextFrame(float deltaTime) {
 	float howLongToWaitInSecs = Config::FPSDelta - deltaTime;
 	auto howLongToWaitInMS = std::chrono::duration<float, std::milli>(howLongToWaitInSecs * 1000.0f);
 	if (howLongToWaitInMS.count() < 1.0f)
@@ -47,7 +47,7 @@ void __stdcall WaitForNextFrame(float deltaTime) {
 		std::this_thread::sleep_for(howLongToWaitInMS);
 }
 
-void __stdcall UpdateFPS() {
+static void __stdcall UpdateFPS() {
 	if (!Config::UnlockFPSDuringLoading) return;
 	auto fe = DR2::cFrontEnd::GetInstance();
 	if (fe && fe->ScreenManager)
@@ -61,7 +61,7 @@ void __stdcall UpdateFPS() {
 	}
 }
 
-void __declspec(naked) MainLoopHook() {
+static void __declspec(naked) MainLoopHook() {
 	__asm {
 		push edi
 		push esi
@@ -81,7 +81,7 @@ void __declspec(naked) MainLoopHook() {
 	}
 }
 
-void __declspec(naked) FrameLimiterHook1() {
+static void __declspec(naked) FrameLimiterHook1() {
 	__asm {
 		fst[Core::DeltaTime]
 		mov edi, 0x00D6EE70
@@ -91,7 +91,7 @@ void __declspec(naked) FrameLimiterHook1() {
 	}
 }
 
-void __declspec(naked) FrameLimiterHook2() {
+static void __declspec(naked) FrameLimiterHook2() {
 	__asm {
 		push [Core::DeltaTime]
 		call WaitForNextFrame
@@ -100,25 +100,25 @@ void __declspec(naked) FrameLimiterHook2() {
 	}
 }
 
-void GiveHealth() {
+static void GiveHealth() {
 	DR2::PlayerData* playerPtr = ((DR2::PlayerData**)0x00dede28)[0];
 	if (!playerPtr) return;
 	playerPtr->stats->health = playerPtr->stats->GetMaxHealth();
 }
 
-void GiveMoney() {
+static void GiveMoney() {
 	DR2::PlayerData* playerPtr = ((DR2::PlayerData**)0x00dede28)[0];
 	if (!playerPtr) return;
 	playerPtr->stats->money = 999999999;
 }
 
-void GivePP() {
+static void GivePP() {
 	DR2::PlayerData* playerPtr = ((DR2::PlayerData**)0x00dede28)[0];
 	if (!playerPtr) return;
 	playerPtr->stats->pp = 999999999;
 }
 
-DWORD CreateAffinityMask(int numCoresToUse) {
+static DWORD CreateAffinityMask(int numCoresToUse) {
 	int totalCores = std::thread::hardware_concurrency();
 
 	if (numCoresToUse <= 0 || numCoresToUse > totalCores)
@@ -132,7 +132,7 @@ DWORD CreateAffinityMask(int numCoresToUse) {
 	return mask;
 }
 
-HANDLE WINAPI CustomCreateThread(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_T dwStackSize, LPTHREAD_START_ROUTINE lpStartAddress,
+static HANDLE WINAPI CustomCreateThread(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_T dwStackSize, LPTHREAD_START_ROUTINE lpStartAddress,
 	LPVOID lpParameter, DWORD dwCreationFlags, LPDWORD lpThreadId)
 {
 	HANDLE hThread = CreateThread(lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId);
@@ -146,7 +146,7 @@ HANDLE WINAPI CustomCreateThread(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_
 // From https://github.com/ThirteenAG/WidescreenFixesPack/pull/1045
 // Forces threads spawned by the game to use less cores, in order to attempt to fix stability/crashing issues. Should perform better than just setting affinity on the process as a whole.
 
-void RunFastAffinity(int coreAmount) {
+static void RunFastAffinity(int coreAmount) {
 	AffinityMask = CreateAffinityMask(coreAmount);
 
 	HINSTANCE					hInstance = GetModuleHandle(nullptr);
@@ -180,11 +180,11 @@ void RunFastAffinity(int coreAmount) {
 	}
 }
 
-bool IsDR2WindowTitle(std::wstring title) {
+static bool IsDR2WindowTitle(std::wstring title) {
 	return title.find(L"Dead Rising 2") != std::wstring::npos;
 }
 
-bool IsDR2Window(HWND hWnd) {
+static bool IsDR2Window(HWND hWnd) {
 	wchar_t windowName[256] = { 0 };
 	int length = GetWindowTextW(hWnd, windowName, sizeof(windowName) / sizeof(windowName[0]));
 	
@@ -196,7 +196,7 @@ bool IsDR2Window(HWND hWnd) {
 }
 
 // hook tuah
-void HookFramerate() {
+static void HookFramerate() {
 	memcpy_s(Addresses::FPSLimit, sizeof(float), &Config::FPSDelta, sizeof(float));
 	float* fpsMemLoc = &Config::CinematicFPS;
 	float* deltaMemLoc = &Config::CinematicFPSDelta;
@@ -204,9 +204,9 @@ void HookFramerate() {
 	Inject::WriteToMemory((DWORD)Addresses::CutsceneDelta, &deltaMemLoc, 4);
 }
 
-float targetDeltaTime = 0.033;
+static float targetDeltaTime = 0.033;
 
-int __fastcall DetourUpdateSystems(void* me, void* _, float deltaTime) {
+static int __fastcall DetourUpdateSystems(void* me, void* _, float deltaTime) {
 	if (Config::MaxPP)
 		GivePP();
 	if (Config::InfiniteMoney)
@@ -218,13 +218,13 @@ int __fastcall DetourUpdateSystems(void* me, void* _, float deltaTime) {
 	return fpUpdateSystems(me, deltaTime);
 }
 
-bool __fastcall DetourDetermineAssignmentPushable(void* me, void* _, void* actor, DR2::tActorAssignment* assignment) {
+static bool __fastcall DetourDetermineAssignmentPushable(void* me, void* _, void* actor, DR2::tActorAssignment* assignment) {
 	bool res = fpDetermineAssignmentPushable(me, actor, assignment);
 	assignment->mPushableInfo.mRotAmt *= Core::AdjustedDeltaTime;
 	return res;
 }
 
-void __declspec(naked) AmmoDepleteHook() {
+static void __declspec(naked) AmmoDepleteHook() {
 	__asm {
 		// calculate ammo deplete
 		movss xmm1, [Core::AdjustedDeltaTime]
@@ -236,14 +236,14 @@ void __declspec(naked) AmmoDepleteHook() {
 	}
 }
 
-void __cdecl DetourDebugPrint(int debugId, int verbosity, char* str, ...) {
+static void __cdecl DetourDebugPrint(int debugId, int verbosity, char* str, ...) {
 	va_list args;
 	va_start(args, str);
 	vprintf(str, args);
 	va_end(args);
 }
 
-BOOL WINAPI DetourSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags) {
+static BOOL WINAPI DetourSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags) {
 	if (IsDR2Window(hWnd) && Config::Borderless) {
 		printf("Setting game window pos.\n");
 		RECT desktopRect;
@@ -253,7 +253,7 @@ BOOL WINAPI DetourSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, in
 	return fpSetWindowPos(hWnd, hWndInsertAfter, X, Y, cx, cy, uFlags);
 }
 
-LONG WINAPI DetourSetWindowLongW(HWND hWnd, int nIndex, LONG dwNewLong) {
+static LONG WINAPI DetourSetWindowLongW(HWND hWnd, int nIndex, LONG dwNewLong) {
 	if (IsDR2Window(hWnd) && nIndex == GWL_STYLE && Config::Borderless) {
 		printf("Adjusting game window.\n");
 		return fpSetWindowLongW(hWnd, nIndex, WS_POPUP | WS_VISIBLE);
@@ -261,7 +261,7 @@ LONG WINAPI DetourSetWindowLongW(HWND hWnd, int nIndex, LONG dwNewLong) {
 	return fpSetWindowLongW(hWnd, nIndex, dwNewLong);
 }
 
-HWND WINAPI DetourCreateWindowExW(DWORD dwExStyle, LPCWSTR lpClassName, LPCWSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam) {
+static HWND WINAPI DetourCreateWindowExW(DWORD dwExStyle, LPCWSTR lpClassName, LPCWSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam) {
 	if (lpWindowName && IsDR2WindowTitle(lpWindowName) && Config::Borderless) {
 		printf("Creating game window.\n");
 		dwStyle = WS_POPUP;
@@ -270,7 +270,7 @@ HWND WINAPI DetourCreateWindowExW(DWORD dwExStyle, LPCWSTR lpClassName, LPCWSTR 
 	return res;
 }
 
-bool __stdcall OutfitUnlocked(Outfits outfit) {
+static bool __stdcall OutfitUnlocked(Outfits outfit) {
 	if (!Config::FixOutfitUnlocks) return false;
 
 	ISteamUserStats* stats = SteamAPI::SteamUserStats();
@@ -296,10 +296,10 @@ bool __stdcall OutfitUnlocked(Outfits outfit) {
 	return false;
 }
 
-DWORD OutfitJumpHookFalseTarget = 0x00878048;
-DWORD OutfitJumpHookTrueTarget = 0x0087800E;
+static DWORD OutfitJumpHookFalseTarget = 0x00878048;
+static DWORD OutfitJumpHookTrueTarget = 0x0087800E;
 
-void __declspec(naked) OutfitJumpHook() {
+static void __declspec(naked) OutfitJumpHook() {
 	__asm {
 	jne unlockedBranch
 	push ebp
@@ -333,7 +333,7 @@ void __declspec(naked) OutfitJumpHook() {
 	}
 }
 
-void EnableJumpMenu() {
+static void EnableJumpMenu() {
 	// enable_dev_features
 	((bool*)0x00dec038)[0] = true;
 	// enable_quickie_debug_menu
@@ -344,13 +344,13 @@ void EnableJumpMenu() {
 	((bool*)0x00dec09b)[0] = true;
 }
 
-char autoAimPatch[] = { 0x39, 0xED };
+static char autoAimPatch[] = { 0x39, 0xED };
 
-void FixJumpAttackAutoAim() {
+static void FixJumpAttackAutoAim() {
 	Inject::WriteToMemory((DWORD)Addresses::AutoAimTestInstruction, autoAimPatch, 2);
 }
 
-void __stdcall DetourInitializeGame() {
+static void __stdcall DetourInitializeGame() {
 	if (Config::FastAffinity > 0) {
 		printf("Using %i cores for game logic.\n", Config::FastAffinity);
 		RunFastAffinity(Config::FastAffinity);
@@ -405,9 +405,9 @@ bool Core::Create() {
 	return _instance->Initialize();
 }
 
-IDirectInput8* pDirectInput = nullptr;
+static IDirectInput8* pDirectInput = nullptr;
 
-BOOL CALLBACK _DIEnumDevCallback(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
+static BOOL CALLBACK _DIEnumDevCallback(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
 {
 	printf("Found product name %s\n", lpddi->tszInstanceName);
 
@@ -458,7 +458,7 @@ BOOL CALLBACK _DIEnumDevCallback(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
 }
 
 
-void DetectController() {
+static void DetectController() {
 	printf("Looking for XInput controller\n");
 	HRESULT hr = DirectInput8Create(
 		GetModuleHandle(nullptr),
@@ -475,7 +475,7 @@ void DetectController() {
 	pDirectInput->EnumDevices(DI8DEVCLASS_GAMECTRL, _DIEnumDevCallback, 0, DIEDFL_ATTACHEDONLY);
 }
 
-bool timeResolutionSet = false;
+static bool timeResolutionSet = false;
 
 void Core::Shutdown() {
 	if (timeResolutionSet)
