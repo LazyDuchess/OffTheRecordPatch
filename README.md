@@ -1,4 +1,4 @@
-# Off TheRecord Patch 1.2
+# Off The Record Patch 1.2
 This is a patch for Dead Rising 2: Off The Record that brings improvements and fixes to the game.
 
 ## Features
@@ -7,7 +7,7 @@ This is a patch for Dead Rising 2: Off The Record that brings improvements and f
 * Improved game stability.
 * Fixes outfit unlocks: Alternative outfit is unlocked if you have Dead Rising 2 in your Steam library and Protoman Armor is unlocked via "The Challenge Experience" and "More Help From My Friends" achievements.
 * Fixes bugs and FPS dependent behavior, such as ammo depletion and pushable steering.
-* >30 FPS Cinematics.
+* Above 30 FPS Cinematics.
 * More lenient timeouts for Co-op, so connections should drop less.
 * Skip startup logos.
 * Adjustable and improved frame limiter.
