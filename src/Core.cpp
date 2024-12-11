@@ -15,6 +15,7 @@
 #include <timeapi.h>
 #include "config.h"
 #include "Addresses.h"
+#include "Logging.h"
 
 typedef void(__cdecl* DEBUGPRINT)(int, int, char*, ...);
 typedef BOOL (WINAPI* SETWINDOWPOS)(HWND, HWND, int, int, int, int, UINT);
@@ -237,15 +238,17 @@ static void __declspec(naked) AmmoDepleteHook() {
 }
 
 static void __cdecl DetourDebugPrint(int debugId, int verbosity, char* str, ...) {
-	va_list args;
-	va_start(args, str);
-	vprintf(str, args);
-	va_end(args);
+	if (Config::Console) {
+		va_list args;
+		va_start(args, str);
+		vprintf(str, args);
+		va_end(args);
+	}
 }
 
 static BOOL WINAPI DetourSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags) {
 	if (IsDR2Window(hWnd) && Config::Borderless) {
-		printf("Setting game window pos.\n");
+		Log("Setting game window pos.\n");
 		RECT desktopRect;
 		GetWindowRect(GetDesktopWindow(), &desktopRect);
 		return fpSetWindowPos(hWnd, hWndInsertAfter, desktopRect.left, desktopRect.top, desktopRect.right - desktopRect.left, desktopRect.bottom - desktopRect.top, uFlags);
@@ -255,7 +258,7 @@ static BOOL WINAPI DetourSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, in
 
 static LONG WINAPI DetourSetWindowLongW(HWND hWnd, int nIndex, LONG dwNewLong) {
 	if (IsDR2Window(hWnd) && nIndex == GWL_STYLE && Config::Borderless) {
-		printf("Adjusting game window.\n");
+		Log("Adjusting game window.\n");
 		return fpSetWindowLongW(hWnd, nIndex, WS_POPUP | WS_VISIBLE);
 	}
 	return fpSetWindowLongW(hWnd, nIndex, dwNewLong);
@@ -263,7 +266,7 @@ static LONG WINAPI DetourSetWindowLongW(HWND hWnd, int nIndex, LONG dwNewLong) {
 
 static HWND WINAPI DetourCreateWindowExW(DWORD dwExStyle, LPCWSTR lpClassName, LPCWSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam) {
 	if (lpWindowName && IsDR2WindowTitle(lpWindowName) && Config::Borderless) {
-		printf("Creating game window.\n");
+		Log("Creating game window.\n");
 		dwStyle = WS_POPUP;
 	}
 	HWND res = fpCreateWindowExW(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
@@ -352,7 +355,7 @@ static void FixJumpAttackAutoAim() {
 
 static void __stdcall DetourInitializeGame() {
 	if (Config::FastAffinity > 0) {
-		printf("Using %i cores for game logic.\n", Config::FastAffinity);
+		Log("Using %i cores for game logic.\n", Config::FastAffinity);
 		RunFastAffinity(Config::FastAffinity);
 	}
 
@@ -409,7 +412,7 @@ static IDirectInput8* pDirectInput = nullptr;
 
 static BOOL CALLBACK _DIEnumDevCallback(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
 {
-	printf("Found product name %s\n", lpddi->tszInstanceName);
+	Log("Found product name %s\n", lpddi->tszInstanceName);
 
 	DIPROPGUIDANDPATH guidAndPath;
 	guidAndPath.diph.dwSize = sizeof DIPROPGUIDANDPATH;
@@ -427,7 +430,7 @@ static BOOL CALLBACK _DIEnumDevCallback(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
 		return DIENUM_CONTINUE;
 	bool isXInputDevice = wcsstr(guidAndPath.wszPath, L"IG_") != nullptr || wcsstr(guidAndPath.wszPath, L"ig_") != nullptr;
 
-	printf("Product Path: %ws\n", guidAndPath.wszPath);
+	Log("Product Path: %ws\n", guidAndPath.wszPath);
 
 	DIPROPDWORD dipdw;
 	dipdw.diph.dwSize = sizeof(DIPROPDWORD);
@@ -444,7 +447,7 @@ static BOOL CALLBACK _DIEnumDevCallback(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
 
 	if (isXInputDevice)
 	{
-		printf("It's XInput!\n");
+		Log("It's XInput!\n");
 		Inject::WriteToMemory(0x00ac0073, &vidpid, 4);
 		Inject::WriteToMemory(0x00ac0c77, &vidpid, 4);
 		Inject::WriteToMemory(0x00ac0f37, &vidpid, 4);
@@ -452,14 +455,14 @@ static BOOL CALLBACK _DIEnumDevCallback(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
 	}
 	else
 	{
-		printf("Not XInput.\n");
+		Log("Not XInput.\n");
 	}
 	return DIENUM_CONTINUE;
 }
 
 
 static void DetectController() {
-	printf("Looking for XInput controller\n");
+	Log("Looking for XInput controller\n");
 	HRESULT hr = DirectInput8Create(
 		GetModuleHandle(nullptr),
 		DIRECTINPUT_VERSION,
@@ -468,7 +471,7 @@ static void DetectController() {
 		nullptr
 	);
 	if (FAILED(hr)) {
-		printf("Unable to create DirectInput8.\n");
+		Log("Unable to create DirectInput8.\n");
 		return;
 	}
 
@@ -483,9 +486,6 @@ void Core::Shutdown() {
 }
 
 bool Core::Initialize() {
-	if (timeBeginPeriod(1) == TIMERR_NOERROR)
-		timeResolutionSet = true;
-	printf("Core initializing\n");
 	Config::Load();
 
 	if (Config::Console) {
@@ -494,6 +494,11 @@ bool Core::Initialize() {
 		freopen_s((FILE**)stdout, "CONOUT$", "w", stdout);
 		freopen_s((FILE**)stderr, "CONOUT$", "w", stderr);
 	}
+
+	if (timeBeginPeriod(1) == TIMERR_NOERROR)
+		timeResolutionSet = true;
+
+	Log("Core initializing\n");
 
 	if (Config::FixControllerSupport)
 		DetectController();
