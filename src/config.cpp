@@ -118,11 +118,22 @@ namespace Config {
 		ExtendedHeartbeat = GetFloat("Online", "ExtendedHeartbeat", 30.0);
 		DisableHeartbeat = GetBool("Online", "DisableHeartbeat", false);
 
-		FPSDelta = 1.0 / FPSLimit;
-		CinematicFPSDelta = 1.0 / CinematicFPS;
+		if (FPSLimit > 0)
+			FPSDelta = 1.0 / FPSLimit;
+		else
+			FPSDelta = 0.0;
+
+		if (CinematicFPS > 0)
+			CinematicFPSDelta = 1.0 / CinematicFPS;
+		else
+		{
+			Log("Cinematic FPS can't be 0 or less - setting to 120.\n");
+			CinematicFPS = 120.0;
+			CinematicFPSDelta = 1.0 / CinematicFPS;
+		}
 
 		if (!iniExisted) {
-			Log("Default config is being written to %s cause it didn't exist.", ConfigFilename);
+			Log("Default config is being written to %s cause it didn't exist.\n", ConfigFilename);
 			file.generate(Ini, true);
 		}
 	}
