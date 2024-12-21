@@ -1,4 +1,4 @@
-# Off The Record Patch 1.2
+# Off The Record Patch 1.2.1
 This is a patch for Dead Rising 2: Off The Record that brings improvements and fixes to the game.
 
 ## Features
