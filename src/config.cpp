@@ -123,14 +123,12 @@ namespace Config {
 		else
 			FPSDelta = 0.0;
 
-		if (CinematicFPS > 0)
-			CinematicFPSDelta = 1.0 / CinematicFPS;
-		else
+		if (CinematicFPS <= 0)
 		{
 			Log("Cinematic FPS can't be 0 or less - setting to 120.\n");
 			CinematicFPS = 120.0;
-			CinematicFPSDelta = 1.0 / CinematicFPS;
 		}
+		CinematicFPSDelta = 1.0 / CinematicFPS;
 
 		if (!iniExisted) {
 			Log("Default config is being written to %s cause it didn't exist.\n", ConfigFilename);
