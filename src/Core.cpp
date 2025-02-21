@@ -396,6 +396,8 @@ static void __stdcall DetourInitializeGame() {
 
 	if (Config::Windowed || Config::Borderless)
 		((bool*)Addresses::RenderFullScreen)[0] = false;
+	else
+		((bool*)Addresses::RenderFullScreen)[0] = true;
 
 	HookFramerate();
 }
